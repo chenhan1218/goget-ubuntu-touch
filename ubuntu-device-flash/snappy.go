@@ -74,6 +74,7 @@ func (f imageFlavor) rootSize() int {
 	}
 }
 
+// Snapper holds common options applicable to snappy based images.
 type Snapper struct {
 	Channel string `long:"channel" description:"Specify the channel to use" default:"stable"`
 	Output  string `long:"output" short:"o" description:"Name of the image file to create" required:"true"`
@@ -166,7 +167,7 @@ func (s *Snapper) install(systemPath string) error {
 	oemSoftware := s.oem.OEM.Software
 	packageCount := len(s.Development.Install) + len(oemSoftware.BuiltIn) + len(oemSoftware.Preinstalled)
 	if s.Oem != "" {
-		packageCount += 1
+		packageCount++
 	}
 	packageQueue := make([]string, 0, packageCount)
 
