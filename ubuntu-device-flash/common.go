@@ -61,11 +61,11 @@ func ensureExists(path string) error {
 
 // expandFile checks for file existence, correct permissions and returns the absolute path.
 func expandFile(path string) (abspath string, err error) {
-	if p, err := filepath.Abs(path); err != nil {
+	p, err := filepath.Abs(path)
+	if err != nil {
 		return "", err
-	} else {
-		abspath = p
 	}
+	abspath = p
 
 	fi, err := os.Lstat(abspath)
 	if err != nil {
