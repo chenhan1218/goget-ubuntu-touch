@@ -24,6 +24,7 @@ import (
 	"launchpad.net/goget-ubuntu-touch/diskimage"
 	"launchpad.net/goget-ubuntu-touch/sysutils"
 	"launchpad.net/goget-ubuntu-touch/ubuntuimage"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/provisioning"
@@ -80,6 +81,8 @@ type Snapper struct {
 	Output  string `long:"output" short:"o" description:"Name of the image file to create" required:"true"`
 	Oem     string `long:"oem" description:"The snappy oem package to base the image out of" default:"generic-amd64"`
 	StoreID string `long:"store" description:"Set an alternate store id."`
+	OS      string `long:"os" description:"path to the OS snap."`
+	Kernel  string `long:"kernel" description:"path to the kernel snap."`
 
 	Development struct {
 		Install       []string `long:"install" description:"Install additional packages (can be called multiple times)"`
@@ -160,17 +163,17 @@ func (s *Snapper) installFlags() snappy.InstallFlags {
 }
 
 func (s *Snapper) install(systemPath string) error {
-	snappy.SetRootDir(systemPath)
-	defer snappy.SetRootDir("/")
+	dirs.SetRootDir(systemPath)
+	defer dirs.SetRootDir("/")
 
 	flags := s.installFlags()
 	oemSoftware := s.oem.OEM.Software
-	packageCount := len(s.Development.Install) + len(oemSoftware.BuiltIn) + len(oemSoftware.Preinstalled)
-	if s.Oem != "" {
-		packageCount++
-	}
+	packageCount := len(s.Development.Install) + len(oemSoftware.BuiltIn) + len(oemSoftware.Preinstalled) + 3
 	packageQueue := make([]string, 0, packageCount)
-
+	if s.OS != "" && s.Kernel != "" {
+		packageQueue = append(packageQueue, s.Kernel)
+		packageQueue = append(packageQueue, s.OS)
+	}
 	if s.Oem != "" {
 		packageQueue = append(packageQueue, s.Oem)
 	}
@@ -207,8 +210,8 @@ func (s *Snapper) extractOem(oemPackage string) error {
 
 	s.stagingRootPath = tempDir
 
-	snappy.SetRootDir(tempDir)
-	defer snappy.SetRootDir("/")
+	dirs.SetRootDir(tempDir)
+	defer dirs.SetRootDir("/")
 	release.Override(release.Release{
 		Flavor:  string(s.flavor),
 		Series:  s.Positional.Release,
@@ -340,7 +343,7 @@ func extractHWDescription(path string) (hw diskimage.HardwareDescription, err er
 	return hw, err
 }
 
-func (s *Snapper) setup(filePathChan <-chan string, fileCount int) error {
+func (s *Snapper) setup(systemImageFiles []Files) error {
 	printOut("Mounting...")
 	if err := s.img.Mount(); err != nil {
 		return err
@@ -353,9 +356,8 @@ func (s *Snapper) setup(filePathChan <-chan string, fileCount int) error {
 	}()
 
 	printOut("Provisioning...")
-	for i := 0; i < fileCount; i++ {
-		f := <-filePathChan
-		if out, err := exec.Command("fakeroot", "tar", "--numeric-owner", "-axvf", f, "-C", s.img.BaseMount()).CombinedOutput(); err != nil {
+	for i := range systemImageFiles {
+		if out, err := exec.Command("fakeroot", "tar", "--numeric-owner", "-axvf", systemImageFiles[i].FilePath, "-C", s.img.BaseMount()).CombinedOutput(); err != nil {
 			printOut(string(out))
 			return fmt.Errorf("issues while extracting: %s", out)
 		}
@@ -395,7 +397,7 @@ func (s *Snapper) setup(filePathChan <-chan string, fileCount int) error {
 }
 
 // deploy orchestrates the priviledged part of the setup
-func (s *Snapper) deploy(systemImage *ubuntuimage.Image, filePathChan <-chan string) error {
+func (s *Snapper) deploy(systemImageFiles []Files) error {
 	// hack to circumvent https://code.google.com/p/go/issues/detail?id=1435
 	runtime.GOMAXPROCS(1)
 	runtime.LockOSThread()
@@ -409,7 +411,7 @@ func (s *Snapper) deploy(systemImage *ubuntuimage.Image, filePathChan <-chan str
 		return err
 	}
 
-	if err := s.setup(filePathChan, len(systemImage.Files)); err != nil {
+	if err := s.setup(systemImageFiles); err != nil {
 		return err
 	}
 
@@ -425,7 +427,78 @@ func (s Snapper) printSummary() {
 	fmt.Println(" Version:", globalArgs.Revision)
 }
 
-func (s *Snapper) create() error {
+func (s *Snapper) getSystemImage() ([]Files, error){
+	var devicePart string
+	if s.Development.DevicePart != "" {
+		p, err := expandFile(s.Development.DevicePart)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println("Using a custom OS or Kernel part will prevent updates for these components")
+
+		devicePart = p
+	}
+
+	fmt.Println("Fetching information from server...")
+	systemImage, err := s.systemImage()
+	if err != nil {
+		return nil, err
+	}
+
+	filesChan := make(chan Files, len(systemImage.Files))
+	sigFiles := ubuntuimage.GetGPGFiles()
+
+	fmt.Println("Downloading and setting up...")
+
+	go func() {
+		sigFilesChan := make(chan Files, len(sigFiles))
+		defer close(sigFilesChan)
+
+		for _, f := range sigFiles {
+			bitDownloader(f, sigFilesChan, globalArgs.Server, cacheDir)
+		}
+	}()
+
+	filePaths := make([]Files, 0, len(systemImage.Files))
+	hwChan := make(chan diskimage.HardwareDescription)
+
+	go func() {
+		for i := 0; i < len(systemImage.Files); i++ {
+			f := <-filesChan
+
+			if isDevicePart(f.FilePath) {
+				devicePart = f.FilePath
+
+				if hardware, err := extractHWDescription(f.FilePath); err != nil {
+					fmt.Println("Failed to read harware.yaml from device part, provisioning may fail:", err)
+				} else {
+					hwChan <- hardware
+				}
+			}
+
+			printOut("Download finished for", f.FilePath)
+			filePaths = append(filePaths, f)
+		}
+		close(hwChan)
+		close(filesChan)
+	}()
+
+	for _, f := range systemImage.Files {
+		if devicePart != "" && isDevicePart(f.Path) {
+			printOut("Using a custom device tarball")
+			filesChan <- Files{FilePath: devicePart}
+		} else {
+			go bitDownloader(f, filesChan, globalArgs.Server, cacheDir)
+		}
+	}
+
+	s.hardware = <-hwChan
+
+	return filePaths, nil
+}
+
+func (s *Snapper) create() (err error) {
 	if err := s.sanityCheck(); err != nil {
 		return err
 	}
@@ -448,86 +521,32 @@ func (s *Snapper) create() error {
 		return err
 	}
 
-	var devicePart string
-	if s.Development.DevicePart != "" {
-		p, err := expandFile(s.Development.DevicePart)
+	systemImageFiles := []Files{}
+	switch s.oem.OEM.Hardware.PartitionLayout {
+	case "system-AB":
+		si, err := s.getSystemImage()
 		if err != nil {
 			return err
 		}
-
-		fmt.Println("Using a custom OS or Kernel part will prevent updates for these components")
-
-		devicePart = p
-	}
-
-	fmt.Println("Fetching information from server...")
-	systemImage, err := s.systemImage()
-	if err != nil {
-		return err
-	}
-
-	filesChan := make(chan Files, len(systemImage.Files))
-	sigFiles := ubuntuimage.GetGPGFiles()
-
-	fmt.Println("Downloading and setting up...")
-
-	go func() {
-		sigFilesChan := make(chan Files, len(sigFiles))
-		defer close(sigFilesChan)
-
-		for _, f := range sigFiles {
-			bitDownloader(f, sigFilesChan, globalArgs.Server, cacheDir)
+		systemImageFiles = si
+	case "minimal":
+		if s.OS == "" && s.Kernel == "" {
+			return errors.New("kernel and os have to be specified to support partition-layout: minimal")
 		}
-	}()
+	}
 
-	filePathChan := make(chan string, len(systemImage.Files))
-	hwChan := make(chan diskimage.HardwareDescription)
-
-	go func() {
-		for i := 0; i < len(systemImage.Files); i++ {
-			f := <-filesChan
-
-			if isDevicePart(f.FilePath) {
-				devicePart = f.FilePath
-
-				if hardware, err := extractHWDescription(f.FilePath); err != nil {
-					fmt.Println("Failed to read harware.yaml from device part, provisioning may fail:", err)
-				} else {
-					hwChan <- hardware
-				}
+	switch s.oem.OEM.Hardware.Bootloader{
+		case "grub":
+			legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
+			if legacy {
+				printOut("Using legacy setup")
 			}
 
-			printOut("Download finished for", f.FilePath)
-			filePathChan <- f.FilePath
-		}
-		close(hwChan)
-		close(filesChan)
-	}()
-
-	for _, f := range systemImage.Files {
-		if devicePart != "" && isDevicePart(f.Path) {
-			printOut("Using a custom device tarball")
-			filesChan <- Files{FilePath: devicePart}
-		} else {
-			go bitDownloader(f, filesChan, globalArgs.Server, cacheDir)
-		}
-	}
-
-	s.hardware = <-hwChan
-
-	loader := s.oem.OEM.Hardware.Bootloader
-	switch loader {
-	case "grub":
-		legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
-		if legacy {
-			printOut("Using legacy setup")
-		}
-
-		s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem, legacy)
-	case "u-boot":
-		s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem)
-	default:
-		return errors.New("no hardware description in OEM snap")
+			s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem, legacy)
+		case "u-boot":
+			s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem)
+		default:
+			return errors.New("no hardware description in OEM snap")
 	}
 
 	printOut("Partitioning...")
@@ -551,7 +570,7 @@ func (s *Snapper) create() error {
 	}()
 
 	// Execute the following code with escalated privs and drop them when done
-	if err := s.deploy(systemImage, filePathChan); err != nil {
+	if err := s.deploy(systemImageFiles); err != nil {
 		return err
 	}
 

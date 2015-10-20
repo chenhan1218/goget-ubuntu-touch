@@ -5,6 +5,7 @@
 //
 // Written by Sergio Schvezov <sergio.schvezov@canonical.com>
 //
+
 package diskimage
 
 import (

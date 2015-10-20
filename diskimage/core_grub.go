@@ -41,6 +41,14 @@ type CoreGrubImage struct {
 
 // NewCoreGrubImage creates a new instance of CoreGrubImage
 func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, oem OemDescription, updateGrub bool) *CoreGrubImage {
+	var partCount int
+	switch oem.PartitionLayout() {
+	case "system-AB":
+		partCount = 5
+	case "minimal":
+		partCount = 3
+	}
+
 	return &CoreGrubImage{
 		BaseImage: BaseImage{
 			location:  location,
@@ -48,10 +56,11 @@ func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDesc
 			rootSize:  rootSize,
 			hardware:  hw,
 			oem:       oem,
-			partCount: 5,
+			partCount: partCount,
 		},
 		legacyGrub: updateGrub,
 	}
+
 }
 
 const grubCfgContent = `# console only, no graphics/vga
@@ -77,9 +86,14 @@ func (img *CoreGrubImage) Partition() error {
 	}
 
 	parted.addPart(grubLabel, "", fsNone, 4)
-	parted.addPart(bootLabel, bootDir, fsFat32, 64)
-	parted.addPart(systemALabel, systemADir, fsExt4, img.rootSize)
-	parted.addPart(systemBLabel, systemBDir, fsExt4, img.rootSize)
+	switch img.oem.PartitionLayout() {
+	case "system-AB":
+		parted.addPart(bootLabel, bootDir, fsFat32, 64)
+		parted.addPart(systemALabel, systemADir, fsExt4, img.rootSize)
+		parted.addPart(systemBLabel, systemBDir, fsExt4, img.rootSize)
+	case "minimal":
+		parted.addPart(bootLabel, bootDir, fsFat32, 512)
+	}
 	parted.addPart(writableLabel, writableDir, fsExt4, -1)
 
 	parted.setBoot(2)
