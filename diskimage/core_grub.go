@@ -5,6 +5,7 @@
 //
 // Written by Sergio Schvezov <sergio.schvezov@canonical.com>
 //
+
 package diskimage
 
 import (
@@ -31,12 +32,14 @@ import (
 // You should have received a copy of the GNU General Public License along
 // with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// CoreGrubImage holds the logic to create a core image using grub.
 type CoreGrubImage struct {
 	BaseImage
 
 	legacyGrub bool
 }
 
+// NewCoreGrubImage creates a new instance of CoreGrubImage
 func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, oem OemDescription, updateGrub bool) *CoreGrubImage {
 	return &CoreGrubImage{
 		BaseImage: BaseImage{
@@ -87,6 +90,7 @@ func (img *CoreGrubImage) Partition() error {
 	return parted.create(img.location)
 }
 
+// SetupBoot sets up the bootloader logic for the image.
 func (img *CoreGrubImage) SetupBoot() error {
 	if !img.legacyGrub {
 		// destinations
@@ -122,12 +126,12 @@ func (img *CoreGrubImage) setupGrub() error {
 
 	rootDevPath := filepath.Join(img.System(), "root_dev")
 
-	if f, err := os.Create(rootDevPath); err != nil {
+	f, err := os.Create(rootDevPath)
+	if err != nil {
 		return err
-	} else {
-		f.Close()
-		defer os.Remove(rootDevPath)
 	}
+	f.Close()
+	defer os.Remove(rootDevPath)
 
 	if err := bindMount(outputPath, rootDevPath); err != nil {
 		return err
