@@ -170,12 +170,12 @@ func (s *Snapper) install(systemPath string) error {
 	oemSoftware := s.oem.OEM.Software
 	packageCount := len(s.Development.Install) + len(oemSoftware.BuiltIn) + len(oemSoftware.Preinstalled) + 3
 	packageQueue := make([]string, 0, packageCount)
+	if s.Oem != "" {
+		packageQueue = append(packageQueue, s.Oem)
+	}
 	if s.OS != "" && s.Kernel != "" {
 		packageQueue = append(packageQueue, s.Kernel)
 		packageQueue = append(packageQueue, s.OS)
-	}
-	if s.Oem != "" {
-		packageQueue = append(packageQueue, s.Oem)
 	}
 	packageQueue = append(packageQueue, oemSoftware.BuiltIn...)
 	packageQueue = append(packageQueue, oemSoftware.Preinstalled...)
@@ -385,18 +385,22 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		if err := os.MkdirAll(systemPath, 0755); err != nil {
 			return err
 		}
-		// mount os
+		// mount os snap
 		cmd := exec.Command("mount", s.OS, systemPath)
 		if o, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", systemPath).Run()
 
-		// just have to be there
-		os.MkdirAll(filepath.Join(s.img.Writable(), "system-data", "etc/systemd/system/multi-user.target.wants"), 0755)
+		// dirs that just need to be there on writable
+		for _, d := range []string{
+			filepath.Join(s.img.Writable(), "system-data", "etc/systemd/system/multi-user.target.wants"),
+		} {
+			os.MkdirAll(d, 0755)
+		}
 
 		// bind mount all relevant dirs
-		for _, d := range []string{"apps", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/", "tmp"} {
+		for _, d := range []string{"apps", "oem", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/", "tmp"} {
 			dst, err := s.bindMount(d)
 			if err != nil {
 				return err
@@ -404,12 +408,32 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 			defer exec.Command("umount", dst).Run()
 		}
 
+		// bind mount /boot/efi
+		dst := filepath.Join(systemPath, "/boot/efi")
+		cmd = exec.Command("mount", "--bind", s.img.Boot(), dst)
+		if o, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
+		}
+		defer exec.Command("umount", dst).Run()
+
+		// grub needs this
+		grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
+		os.MkdirAll(grubUbuntu, 0755)
+		
+		// and /boot/grub
+		src := grubUbuntu
+		dst = filepath.Join(systemPath, "/boot/grub")
+		cmd = exec.Command("mount", "--bind", src, dst)
+		if o, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
+		}
+		defer exec.Command("umount", dst).Run()
 	}
 
 	if err := s.img.SetupBoot(); err != nil {
 		return err
 	}
-
+			
 	if err := s.install(systemPath); err != nil {
 		return err
 	}
