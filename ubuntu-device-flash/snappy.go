@@ -381,7 +381,6 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 	// setup a fake system
 	if s.oem.PartitionLayout() == "minimal" {
-		systemPath := s.img.System()
 		if err := os.MkdirAll(systemPath, 0755); err != nil {
 			return err
 		}
@@ -419,7 +418,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		// grub needs this
 		grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
 		os.MkdirAll(grubUbuntu, 0755)
-		
+
 		// and /boot/grub
 		src := grubUbuntu
 		dst = filepath.Join(systemPath, "/boot/grub")
@@ -442,7 +441,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 	if err := s.img.SetupBoot(); err != nil {
 		return err
 	}
-			
+
 	if err := s.install(systemPath); err != nil {
 		return err
 	}
