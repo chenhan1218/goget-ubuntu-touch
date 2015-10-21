@@ -381,6 +381,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 	// setup a fake system
 	if s.oem.PartitionLayout() == "minimal" {
+		systemPath := s.img.System()
 		if err := os.MkdirAll(systemPath, 0755); err != nil {
 			return err
 		}
@@ -395,21 +396,21 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		os.MkdirAll(filepath.Join(s.img.Writable(), "system-data", "etc/systemd/system/multi-user.target.wants"), 0755)
 
 		// bind mount all relevant dirs
-		for _, d := range []string{"apps", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/"} {
+		for _, d := range []string{"apps", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/", "tmp"} {
 			dst, err := s.bindMount(d)
 			if err != nil {
 				return err
 			}
 			defer exec.Command("umount", dst).Run()
 		}
-		
-	}
-		
-	if err := s.install(systemPath); err != nil {
-		return err
+
 	}
 
 	if err := s.img.SetupBoot(); err != nil {
+		return err
+	}
+
+	if err := s.install(systemPath); err != nil {
 		return err
 	}
 
@@ -467,7 +468,7 @@ func (s Snapper) printSummary() {
 	fmt.Println(" Version:", globalArgs.Revision)
 }
 
-func (s *Snapper) getSystemImage() ([]Files, error){
+func (s *Snapper) getSystemImage() ([]Files, error) {
 	var devicePart string
 	if s.Development.DevicePart != "" {
 		p, err := expandFile(s.Development.DevicePart)
@@ -575,18 +576,18 @@ func (s *Snapper) create() (err error) {
 		}
 	}
 
-	switch s.oem.OEM.Hardware.Bootloader{
-		case "grub":
-			legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
-			if legacy {
-				printOut("Using legacy setup")
-			}
+	switch s.oem.OEM.Hardware.Bootloader {
+	case "grub":
+		legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
+		if legacy {
+			printOut("Using legacy setup")
+		}
 
-			s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem, legacy)
-		case "u-boot":
-			s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem)
-		default:
-			return errors.New("no hardware description in OEM snap")
+		s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem, legacy)
+	case "u-boot":
+		s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem)
+	default:
+		return errors.New("no hardware description in OEM snap")
 	}
 
 	printOut("Partitioning...")

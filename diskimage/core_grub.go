@@ -106,7 +106,7 @@ func (img *CoreGrubImage) Partition() error {
 
 // SetupBoot sets up the bootloader logic for the image.
 func (img *CoreGrubImage) SetupBoot() error {
-	if !img.legacyGrub {
+	if !img.legacyGrub && img.oem.PartitionLayout() != "minimal" {
 		// destinations
 		bootPath := filepath.Join(img.baseMount, string(bootDir), "EFI", "ubuntu", "grub")
 		if err := img.GenericBootSetup(bootPath); err != nil {
@@ -138,7 +138,7 @@ func (img *CoreGrubImage) setupGrub() error {
 		return errors.New("cannot determined absolute path for output image")
 	}
 
-	rootDevPath := filepath.Join(img.System(), "root_dev")
+	rootDevPath := filepath.Join(img.System(), "tmp", "root_dev")
 
 	f, err := os.Create(rootDevPath)
 	if err != nil {
@@ -191,7 +191,7 @@ func (img *CoreGrubImage) setupGrub() error {
 
 	if arch == "amd64" || arch == "i386" {
 		// install grub BIOS support
-		if out, err := exec.Command("chroot", img.System(), "grub-install", "/root_dev").CombinedOutput(); err != nil {
+		if out, err := exec.Command("chroot", img.System(), "grub-install", "tmp", "/root_dev").CombinedOutput(); err != nil {
 			return fmt.Errorf("unable to install grub (BIOS): %s", out)
 		}
 	}
