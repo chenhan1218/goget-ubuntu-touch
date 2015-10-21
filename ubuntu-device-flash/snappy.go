@@ -428,6 +428,15 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 			return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", dst).Run()
+
+		// TERRIBLE but we need a /boot/grub/grub.cfg so that
+		//          the kernel and os snap can be installed
+		oemGrubCfg := filepath.Join(s.stagingRootPath, "oem", "generic-amd64", "current", "grub.cfg")
+		cmd = exec.Command("cp", oemGrubCfg, grubUbuntu)
+		o, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to copy %s %s", err, o)
+		}
 	}
 
 	if err := s.img.SetupBoot(); err != nil {
