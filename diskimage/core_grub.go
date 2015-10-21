@@ -106,7 +106,7 @@ func (img *CoreGrubImage) Partition() error {
 
 // SetupBoot sets up the bootloader logic for the image.
 func (img *CoreGrubImage) SetupBoot() error {
-	if !img.legacyGrub && img.oem.PartitionLayout() != "minimal" {
+	if !img.legacyGrub {
 		// destinations
 		bootPath := filepath.Join(img.baseMount, string(bootDir), "EFI", "ubuntu", "grub")
 		if err := img.GenericBootSetup(bootPath); err != nil {

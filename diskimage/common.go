@@ -485,30 +485,32 @@ func (img BaseImage) BaseMount() string {
 
 func (img *BaseImage) GenericBootSetup(bootPath string) error {
 	// origins
-	hardwareYamlPath := filepath.Join(img.baseMount, hardwareFileName)
-	kernelPath := filepath.Join(img.baseMount, img.hardware.Kernel)
-	initrdPath := filepath.Join(img.baseMount, img.hardware.Initrd)
+	if img.oem.PartitionLayout() == "system-AB" {
+		hardwareYamlPath := filepath.Join(img.baseMount, hardwareFileName)
+		kernelPath := filepath.Join(img.baseMount, img.hardware.Kernel)
+		initrdPath := filepath.Join(img.baseMount, img.hardware.Initrd)
 
-	// populate both A/B
-	for _, part := range img.oem.SystemParts() {
-		path := filepath.Join(bootPath, part)
+		// populate both A/B
+		for _, part := range img.oem.SystemParts() {
+			path := filepath.Join(bootPath, part)
 
-		printOut("Setting up", path)
+			printOut("Setting up", path)
 
-		if err := os.MkdirAll(path, 0755); err != nil {
-			return err
-		}
+			if err := os.MkdirAll(path, 0755); err != nil {
+				return err
+			}
 
-		if err := sysutils.CopyFile(hardwareYamlPath, filepath.Join(path, hardwareFileName)); err != nil {
-			return err
-		}
+			if err := sysutils.CopyFile(hardwareYamlPath, filepath.Join(path, hardwareFileName)); err != nil {
+				return err
+			}
 
-		if err := sysutils.CopyFile(kernelPath, filepath.Join(path, kernelFileName)); err != nil {
-			return err
-		}
+			if err := sysutils.CopyFile(kernelPath, filepath.Join(path, kernelFileName)); err != nil {
+				return err
+			}
 
-		if err := sysutils.CopyFile(initrdPath, filepath.Join(path, initrdFileName)); err != nil {
-			return err
+			if err := sysutils.CopyFile(initrdPath, filepath.Join(path, initrdFileName)); err != nil {
+				return err
+			}
 		}
 	}
 
