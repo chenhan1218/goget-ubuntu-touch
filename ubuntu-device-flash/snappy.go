@@ -343,6 +343,20 @@ func extractHWDescription(path string) (hw diskimage.HardwareDescription, err er
 	return hw, err
 }
 
+func (s *Snapper) bindMount(d string) (string, error) {
+	src := filepath.Join(s.img.Writable(), "system-data", d)
+	dst := filepath.Join(s.img.System(), d)
+
+	if err := os.MkdirAll(src, 0755); err != nil {
+		return "", err
+	}
+	cmd := exec.Command("mount", "--bind", src, dst)
+	if o, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
+	}
+	return dst, nil
+}
+
 func (s *Snapper) setup(systemImageFiles []Files) error {
 	printOut("Mounting...")
 	if err := s.img.Mount(); err != nil {
@@ -365,6 +379,32 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 	systemPath := s.img.System()
 
+	// setup a fake system
+	if s.oem.PartitionLayout() == "minimal" {
+		if err := os.MkdirAll(systemPath, 0755); err != nil {
+			return err
+		}
+		// mount os
+		cmd := exec.Command("mount", s.OS, systemPath)
+		if o, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
+		}
+		defer exec.Command("umount", systemPath).Run()
+
+		// just have to be there
+		os.MkdirAll(filepath.Join(s.img.Writable(), "system-data", "etc/systemd/system/multi-user.target.wants"), 0755)
+
+		// bind mount all relevant dirs
+		for _, d := range []string{"apps", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/"} {
+			dst, err := s.bindMount(d)
+			if err != nil {
+				return err
+			}
+			defer exec.Command("umount", dst).Run()
+		}
+		
+	}
+		
 	if err := s.install(systemPath); err != nil {
 		return err
 	}
