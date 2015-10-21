@@ -191,7 +191,7 @@ func (img *CoreGrubImage) setupGrub() error {
 
 	if arch == "amd64" || arch == "i386" {
 		// install grub BIOS support
-		if out, err := exec.Command("chroot", img.System(), "grub-install", "tmp", "/root_dev").CombinedOutput(); err != nil {
+		if out, err := exec.Command("chroot", img.System(), "grub-install", "tmp/root_dev").CombinedOutput(); err != nil {
 			return fmt.Errorf("unable to install grub (BIOS): %s", out)
 		}
 	}
