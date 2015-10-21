@@ -272,7 +272,7 @@ func (img *BaseImage) Mount() error {
 		}
 
 		printOut("Bind mounting", d, "to", p)
-		if err :=  bindMount(filepath.Join("/", d), p); err != nil {
+		if err := bindMount(filepath.Join("/", d), p); err != nil {
 			return err
 		}
 
