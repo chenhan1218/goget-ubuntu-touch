@@ -294,8 +294,8 @@ func (img *BaseImage) Unmount() error {
 		panic("No base mountpoint set")
 	}
 
-	for _, d := range img.bindMounts {
-		if err := unmount(d); err != nil {
+	for i := len(img.bindMounts) - 1; i >= 0; i-- {
+		if err := unmount(img.bindMounts[i]); err != nil {
 			return err
 		}
 	}
