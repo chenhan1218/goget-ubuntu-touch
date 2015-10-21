@@ -244,19 +244,3 @@ func (img *CoreGrubImage) updateGrub() error {
 
 	return nil
 }
-
-func bindMount(src, dst string) error {
-	if out, err := exec.Command("mount", "--bind", src, dst).CombinedOutput(); err != nil {
-		return fmt.Errorf("issues while bind mounting: %s", out)
-	}
-
-	return nil
-}
-
-func unmount(dst string) error {
-	if out, err := exec.Command("umount", dst).CombinedOutput(); err != nil {
-		return fmt.Errorf("issues while unmounting: %s", out)
-	}
-
-	return nil
-}

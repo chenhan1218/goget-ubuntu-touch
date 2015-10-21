@@ -190,15 +190,18 @@ func sectorSize(dev string) (string, error) {
 
 // BaseImage implements the basic primitives to manage images.
 type BaseImage struct {
-	baseMount string
-	hardware  HardwareDescription
-	location  string
-	oem       OemDescription
-	parts     []partition
-	partCount int
-	size      int64
-	rootSize  int
+	baseMount  string
+	bindMounts []string
+	hardware   HardwareDescription
+	location   string
+	oem        OemDescription
+	parts      []partition
+	partCount  int
+	size       int64
+	rootSize   int
 }
+
+var bindMounts = []string{"dev", "sys", "proc", filepath.Join("sys", "firmware")}
 
 // Mount mounts the image. This also maps the loop device.
 func (img *BaseImage) Mount() error {
@@ -256,8 +259,27 @@ func (img *BaseImage) Mount() error {
 	}
 	img.baseMount = baseMount
 
-	return nil
+	mountpoints := make([]string, 0, len(bindMounts))
+	if img.oem.PartitionLayout() == "minimal" {
+		mountpoints = bindMounts
+	}
 
+	for _, d := range mountpoints {
+		p := filepath.Join(baseMount, d)
+
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+
+		printOut("Bind mounting", d, "to", p)
+		if err :=  bindMount(filepath.Join("/", d), p); err != nil {
+			return err
+		}
+
+		img.bindMounts = append(img.bindMounts, p)
+	}
+
+	return nil
 }
 
 // Unmount unmounts the image. This also unmaps the loop device.
@@ -271,6 +293,13 @@ func (img *BaseImage) Unmount() error {
 	if img.baseMount == "" {
 		panic("No base mountpoint set")
 	}
+
+	for _, d := range img.bindMounts {
+		if err := unmount(d); err != nil {
+			return err
+		}
+	}
+	img.bindMounts = nil
 
 	syscallSync()
 
@@ -508,4 +537,20 @@ func printOut(args ...interface{}) {
 	if debugPrint {
 		fmt.Println(args...)
 	}
+}
+
+func bindMount(src, dst string) error {
+	if out, err := exec.Command("mount", "--bind", src, dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("issues while bind mounting: %s", out)
+	}
+
+	return nil
+}
+
+func unmount(dst string) error {
+	if out, err := exec.Command("umount", dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("issues while unmounting: %s", out)
+	}
+
+	return nil
 }
