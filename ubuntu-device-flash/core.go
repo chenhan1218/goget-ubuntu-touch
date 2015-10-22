@@ -89,7 +89,6 @@ func (coreCmd *CoreCmd) Execute(args []string) error {
 func (coreCmd *CoreCmd) setupOemConfigs() error {
 	modprobeDContent := coreCmd.oem.Config.UbuntuCore.Modprobe
 	if modprobeDContent == nil {
-		printOut("no modprobe")
 		return nil
 	}
 
