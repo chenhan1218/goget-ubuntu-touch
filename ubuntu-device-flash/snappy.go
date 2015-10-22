@@ -402,11 +402,9 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		if err := os.MkdirAll(dst, 0755); err != nil {
 			return err
 		}
-		cmd = exec.Command("cp", "-av", src, dst)
+		cmd = exec.Command("cp", "-a", src, dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("copy failed: %s %s", err, o)
-		} else {
-		println(string(o))
 		}
 
 		// bind mount all relevant dirs
