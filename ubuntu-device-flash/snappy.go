@@ -391,11 +391,22 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		}
 		defer exec.Command("umount", systemPath).Run()
 
-		// dirs that just need to be there on writable
-		for _, d := range []string{
-			filepath.Join(s.img.Writable(), "system-data", "etc/systemd/system/multi-user.target.wants"),
-		} {
-			os.MkdirAll(d, 0755)
+		// we need to do what "writable-paths" normally does on
+		// boot for etc/systemd/system, i.e. copy all the stuff
+		// from the os into the writable partition. normally
+		// this is the job of the initrd, however it won't touch
+		// the dir if there are files in there already. and a
+		// kernel/os install will create auto-mount units in there
+		src := filepath.Join(systemPath, "etc", "systemd", "system")
+		dst := filepath.Join(s.img.Writable(), "system-data", "etc", "systemd")
+		if err := os.MkdirAll(dst, 0755); err != nil {
+			return err
+		}
+		cmd = exec.Command("cp", "-av", src, dst)
+		if o, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("copy failed: %s %s", err, o)
+		} else {
+		println(string(o))
 		}
 
 		// bind mount all relevant dirs
@@ -408,7 +419,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		}
 
 		// bind mount /boot/efi
-		dst := filepath.Join(systemPath, "/boot/efi")
+		dst = filepath.Join(systemPath, "/boot/efi")
 		cmd = exec.Command("mount", "--bind", s.img.Boot(), dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
@@ -420,7 +431,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		os.MkdirAll(grubUbuntu, 0755)
 
 		// and /boot/grub
-		src := grubUbuntu
+		src = grubUbuntu
 		dst = filepath.Join(systemPath, "/boot/grub")
 		cmd = exec.Command("mount", "--bind", src, dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
