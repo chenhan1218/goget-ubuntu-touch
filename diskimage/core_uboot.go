@@ -67,6 +67,14 @@ type FlashInstructions struct {
 }
 
 func NewCoreUBootImage(location string, size int64, rootSize int, hw HardwareDescription, oem OemDescription) *CoreUBootImage {
+	var partCount int
+	switch oem.PartitionLayout() {
+	case "system-AB":
+		partCount = 4
+	case "minimal":
+		partCount = 2
+	}
+
 	return &CoreUBootImage{
 		BaseImage{
 			hardware:  hw,
@@ -74,7 +82,7 @@ func NewCoreUBootImage(location string, size int64, rootSize int, hw HardwareDes
 			location:  location,
 			size:      size,
 			rootSize:  rootSize,
-			partCount: 4,
+			partCount: partCount,
 		},
 	}
 }
@@ -90,9 +98,14 @@ func (img *CoreUBootImage) Partition() error {
 		return err
 	}
 
-	parted.addPart(bootLabel, bootDir, fsFat32, 64)
-	parted.addPart(systemALabel, systemADir, fsExt4, 1024)
-	parted.addPart(systemBLabel, systemBDir, fsExt4, 1024)
+	switch img.oem.PartitionLayout() {
+	case "system-AB":
+		parted.addPart(bootLabel, bootDir, fsFat32, 64)
+		parted.addPart(systemALabel, systemADir, fsExt4, 1024)
+		parted.addPart(systemBLabel, systemBDir, fsExt4, 1024)
+	case "minimal":
+		parted.addPart(bootLabel, bootDir, fsFat32, 512)
+	}
 	parted.addPart(writableLabel, writableDir, fsExt4, -1)
 
 	parted.setBoot(1)
@@ -149,9 +162,13 @@ func (img CoreUBootImage) provisionDtbs(bootDtbPath string) error {
 		return err
 	}
 
-	dtbFis, err := ioutil.ReadDir(dtbsPath)
-	if err != nil {
-		return err
+	var dtbFis []os.FileInfo
+	if img.hardware.Dtbs != "" {
+		var err error
+		dtbFis, err = ioutil.ReadDir(dtbsPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := os.MkdirAll(bootDtbPath, 0755); err != nil {

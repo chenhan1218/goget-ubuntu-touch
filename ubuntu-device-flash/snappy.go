@@ -427,27 +427,37 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 			return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", dst).Run()
+		switch s.oem.OEM.Hardware.Bootloader {
+		case "grub":
+			// grub needs this
+			grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
+			os.MkdirAll(grubUbuntu, 0755)
 
-		// grub needs this
-		grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
-		os.MkdirAll(grubUbuntu, 0755)
+			// and /boot/grub
+			src = grubUbuntu
+			dst = filepath.Join(systemPath, "/boot/grub")
+			cmd = exec.Command("mount", "--bind", src, dst)
+			if o, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
+			}
+			defer exec.Command("umount", dst).Run()
 
-		// and /boot/grub
-		src = grubUbuntu
-		dst = filepath.Join(systemPath, "/boot/grub")
-		cmd = exec.Command("mount", "--bind", src, dst)
-		if o, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
-		}
-		defer exec.Command("umount", dst).Run()
-
-		// TERRIBLE but we need a /boot/grub/grub.cfg so that
-		//          the kernel and os snap can be installed
-		oemGrubCfg := filepath.Join(s.stagingRootPath, "oem", "generic-amd64", "current", "grub.cfg")
-		cmd = exec.Command("cp", oemGrubCfg, grubUbuntu)
-		o, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to copy %s %s", err, o)
+			// TERRIBLE but we need a /boot/grub/grub.cfg so that
+			//          the kernel and os snap can be installed
+			oemGrubCfg := filepath.Join(s.stagingRootPath, "oem", "generic-amd64", "current", "grub.cfg")
+			cmd = exec.Command("cp", oemGrubCfg, grubUbuntu)
+			o, err := cmd.CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("failed to copy %s %s", err, o)
+			}
+		case "u-boot":
+			src = s.img.Boot()
+			dst = filepath.Join(systemPath, "/boot/uboot")
+			cmd = exec.Command("mount", "--bind", src, dst)
+			if o, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
+			}
+			defer exec.Command("umount", dst).Run()
 		}
 	}
 
