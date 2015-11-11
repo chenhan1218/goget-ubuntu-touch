@@ -260,6 +260,9 @@ func (s *Snapper) loadOem(systemPath string) error {
 	s.oem = oem
 	s.oem.SetRoot(systemPath)
 
+	// ensure we can install snaps
+	snappy.SetArchitecture(snappy.ArchitectureType(s.oem.Architecture()))
+
 	return nil
 }
 
