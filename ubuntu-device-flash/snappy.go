@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/progress"
@@ -261,7 +262,7 @@ func (s *Snapper) loadOem(systemPath string) error {
 	s.oem.SetRoot(systemPath)
 
 	// ensure we can install snaps
-	snappy.SetArchitecture(snappy.ArchitectureType(s.oem.Architecture()))
+	arch.SetArchitecture(arch.ArchitectureType(s.oem.Architecture()))
 
 	return nil
 }
@@ -359,7 +360,7 @@ func (s *Snapper) bindMount(d string) (string, error) {
 	}
 	cmd := exec.Command("mount", "--bind", src, dst)
 	if o, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
+		return "", fmt.Errorf("bind mount failed for %s to %s with: %s %v ", src, dst, err, string(o))
 	}
 	return dst, nil
 }
