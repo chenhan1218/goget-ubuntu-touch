@@ -365,7 +365,7 @@ func (s *Snapper) bindMount(d string) (string, error) {
 	return dst, nil
 }
 
-func (s *Snapper) downlaodOS(osPackage string) (string, error) {
+func (s *Snapper) downloadOS(osPackage string) (string, error) {
 	if osPackage == "" {
 		return "", nil
 	}
