@@ -365,6 +365,38 @@ func (s *Snapper) bindMount(d string) (string, error) {
 	return dst, nil
 }
 
+func (s *Snapper) downlaodOS(osPackage string) (string, error) {
+	if osPackage == "" {
+		return "", nil
+	}
+	// if its pointing to a local file, just return that
+	if _, err := os.Stat(osPackage); err == nil {
+		return osPackage, nil
+	}
+
+	release.Override(release.Release{
+		Flavor:  string(s.flavor),
+		Series:  s.Positional.Release,
+		Channel: s.Channel,
+	})
+	m := snappy.NewMetaStoreRepository()
+	parts, err := m.Details(snappy.SplitOrigin(osPackage))
+	if err != nil {
+		return "", err
+	}
+	if len(parts) != 1 {
+		return "", fmt.Errorf("can not find OS part")
+	}
+
+	pb := progress.NewTextProgress()
+	path, err := parts[0].(*snappy.RemoteSnapPart).Download(pb)
+	if err != nil {
+		return "", err
+	}
+
+	return path, nil
+}
+
 func (s *Snapper) setup(systemImageFiles []Files) error {
 	printOut("Mounting...")
 	if err := s.img.Mount(); err != nil {
@@ -392,8 +424,17 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		if err := os.MkdirAll(systemPath, 0755); err != nil {
 			return err
 		}
+
+		// this is a bit terrible, we need to download the OS
+		// mount it, "sync dirs" (see below) and then we
+		// will need to download it again to install it properly
+		osSnap, err := s.downloadOS(s.OS)
+		if err != nil {
+			return err
+		}
+
 		// mount os snap
-		cmd := exec.Command("mount", s.OS, systemPath)
+		cmd := exec.Command("mount", osSnap, systemPath)
 		if o, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
 		}
