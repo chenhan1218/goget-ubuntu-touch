@@ -17,16 +17,19 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
+
 	"gopkg.in/yaml.v2"
 	"launchpad.net/goget-ubuntu-touch/diskimage"
 	"launchpad.net/goget-ubuntu-touch/sysutils"
@@ -192,6 +195,34 @@ func (s *Snapper) install(systemPath string) error {
 		pb := progress.NewTextProgress()
 		if _, err := snappy.Install(snap, flags, pb); err != nil {
 			return err
+		}
+	}
+
+	// set the bootvars for kernel/os snaps, the latest snappy is
+	// not activating the snaps on install anymore (with inhibit)
+	// so we need to work around that here (only on first boot)
+	//
+	// there is also no mounted os/kernel snap in the systemPath
+	// all we have here is the blobs
+	if s.OS != "" && s.Kernel != "" {
+		snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+		for _, fullname := range snaps {
+			bootvar := ""
+			name := filepath.Base(fullname)
+
+			// FIXME: terrible way to detect kernel/os snaps
+			switch {
+			case strings.HasPrefix(name, "ubuntu-core"):
+				bootvar = "snappy_os"
+			case strings.HasPrefix(name, "ubuntu-kernel"):
+				bootvar = "snappy_kernel"
+			}
+
+			if bootvar != "" {
+				if err := partition.SetBootVar(bootvar, name); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
