@@ -223,6 +223,10 @@ func (s *Snapper) extractOem(oemPackage string) error {
 		Channel: s.Channel,
 	})
 
+	// FIXME: this will stop working once the oem package becomes
+	//        a squashfs snap. it won't get unpacked on disk, it
+	//        won't get mounted. So we will have to unpack it ourself
+	//        once downloaded (which should be trivial)
 	flags := s.installFlags()
 	pb := progress.NewTextProgress()
 	if _, err := snappy.Install(oemPackage, flags, pb); err != nil {
@@ -489,7 +493,14 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 			// TERRIBLE but we need a /boot/grub/grub.cfg so that
 			//          the kernel and os snap can be installed
-			oemGrubCfg := filepath.Join(s.stagingRootPath, "oem", "generic-amd64", "current", "grub.cfg")
+			glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "oem", "generic-amd64", "*", "grub.cfg"))
+			if err != nil {
+				return fmt.Errorf("grub.cfg glob failed: %s", err)
+			}
+			if len(glob) != 1 {
+				return fmt.Errorf("can not find a valid grub.cfg, found %v instead", len(glob))
+			}
+			oemGrubCfg := glob[0]
 			cmd = exec.Command("cp", oemGrubCfg, grubUbuntu)
 			o, err := cmd.CombinedOutput()
 			if err != nil {
