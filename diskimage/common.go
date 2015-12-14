@@ -150,7 +150,8 @@ func (o *OemDescription) SystemParts() []string {
 }
 
 func (o OemDescription) InstallPath() (string, error) {
-	glob, err := filepath.Glob(fmt.Sprintf("%s/oem/%s/*", o.rootDir, o.Name))
+
+	glob, err := filepath.Glob(fmt.Sprintf("%s/oem/*/*", o.rootDir))
 	if err != nil {
 		return "", err
 	}

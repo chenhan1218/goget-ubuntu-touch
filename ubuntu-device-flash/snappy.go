@@ -212,9 +212,9 @@ func (s *Snapper) install(systemPath string) error {
 
 			// FIXME: terrible way to detect kernel/os snaps
 			switch {
-			case strings.HasPrefix(name, "ubuntu-core"):
+			case strings.Contains(name, "core"):
 				bootvar = "snappy_os"
-			case strings.HasPrefix(name, "ubuntu-kernel"):
+			case strings.Contains(name, "linux"):
 				bootvar = "snappy_kernel"
 			}
 
@@ -254,14 +254,30 @@ func (s *Snapper) extractOem(oemPackage string) error {
 		Channel: s.Channel,
 	})
 
-	// FIXME: this will stop working once the oem package becomes
-	//        a squashfs snap. it won't get unpacked on disk, it
-	//        won't get mounted. So we will have to unpack it ourself
-	//        once downloaded (which should be trivial)
-	flags := s.installFlags()
-	pb := progress.NewTextProgress()
-	if _, err := snappy.Install(oemPackage, flags, pb); err != nil {
+	// we need to download and extrac the squashfs snap
+	downloadedSnap := oemPackage
+	if !helpers.FileExists(oemPackage) {
+		repo := snappy.NewUbuntuStoreSnapRepository()
+		snaps, err := repo.Details(snappy.SplitOrigin(oemPackage))
+		if len(snaps) != 1 {
+			return fmt.Errorf("expected 1 oem snaps, found %d", len(snaps))
+		}
+
+		pb := progress.NewTextProgress()
+		downloadedSnap, err = snaps[0].(*snappy.RemoteSnapPart).Download(pb)
+		if err != nil {
+			return err
+		}
+	}
+
+	// the
+	fakeOemDir := filepath.Join(tempDir, "/oem/fake-oem/1.0/")
+	if err := os.MkdirAll(fakeOemDir, 0755); err != nil {
 		return err
+	}
+	cmd := exec.Command("unsquashfs", "-f", "-d", fakeOemDir, downloadedSnap)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
 	}
 
 	if err := s.loadOem(tempDir); err != nil {
@@ -524,7 +540,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 			// TERRIBLE but we need a /boot/grub/grub.cfg so that
 			//          the kernel and os snap can be installed
-			glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "oem", "generic-amd64", "*", "grub.cfg"))
+			glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "oem", "*", "*", "grub.cfg"))
 			if err != nil {
 				return fmt.Errorf("grub.cfg glob failed: %s", err)
 			}
