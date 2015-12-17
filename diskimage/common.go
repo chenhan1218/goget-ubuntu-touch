@@ -100,11 +100,11 @@ type BootAssets struct {
 	RawFiles []BootAssetRawFiles `yaml:"raw-files,omitempty"`
 }
 
-type OemDescription struct {
+type GadgetDescription struct {
 	Name    string `yaml:"name"`
 	Version string `yaml:"version"`
 
-	OEM struct {
+	GADGET struct {
 		Hardware struct {
 			Bootloader      string      `yaml:"bootloader"`
 			PartitionLayout string      `yaml:"partition-layout"`
@@ -133,15 +133,15 @@ type OemDescription struct {
 	rootDir string
 }
 
-func (o *OemDescription) SetRoot(rootDir string) {
+func (o *GadgetDescription) SetRoot(rootDir string) {
 	o.rootDir = rootDir
 }
 
 // SystemParts returns the system labels depending on the partition layout.
 //
 // The default is to return a flat structure for any unknown layout.
-func (o *OemDescription) SystemParts() []string {
-	switch o.OEM.Hardware.PartitionLayout {
+func (o *GadgetDescription) SystemParts() []string {
+	switch o.GADGET.Hardware.PartitionLayout {
 	case partLayoutSystemAB:
 		return []string{"a", "b"}
 	default:
@@ -149,38 +149,38 @@ func (o *OemDescription) SystemParts() []string {
 	}
 }
 
-func (o OemDescription) InstallPath() (string, error) {
+func (o GadgetDescription) InstallPath() (string, error) {
 
-	glob, err := filepath.Glob(fmt.Sprintf("%s/oem/*/*", o.rootDir))
+	glob, err := filepath.Glob(fmt.Sprintf("%s/gadget/*/*", o.rootDir))
 	if err != nil {
 		return "", err
 	}
 
 	if len(glob) != 1 {
-		return "", errors.New("oem package not installed")
+		return "", errors.New("gadget package not installed")
 	}
 
 	return glob[0], nil
 }
 
-func (o OemDescription) Architecture() string {
-	return o.OEM.Hardware.Architecture
+func (o GadgetDescription) Architecture() string {
+	return o.GADGET.Hardware.Architecture
 }
 
-func (o *OemDescription) SetArchitecture(architecture string) {
-	o.OEM.Hardware.Architecture = architecture
+func (o *GadgetDescription) SetArchitecture(architecture string) {
+	o.GADGET.Hardware.Architecture = architecture
 }
 
-func (o OemDescription) PartitionLayout() string {
-	return o.OEM.Hardware.PartitionLayout
+func (o GadgetDescription) PartitionLayout() string {
+	return o.GADGET.Hardware.PartitionLayout
 }
 
-func (o OemDescription) Platform() string {
-	return o.OEM.Hardware.Platform
+func (o GadgetDescription) Platform() string {
+	return o.GADGET.Hardware.Platform
 }
 
-func (o *OemDescription) SetPlatform(platform string) {
-	o.OEM.Hardware.Platform = platform
+func (o *GadgetDescription) SetPlatform(platform string) {
+	o.GADGET.Hardware.Platform = platform
 }
 
 func sectorSize(dev string) (string, error) {
@@ -198,7 +198,7 @@ type BaseImage struct {
 	bindMounts []string
 	hardware   HardwareDescription
 	location   string
-	oem        OemDescription
+	gadget     GadgetDescription
 	parts      []partition
 	partCount  int
 	size       int64
@@ -264,7 +264,7 @@ func (img *BaseImage) Mount() error {
 	img.baseMount = baseMount
 
 	mountpoints := make([]string, 0, len(bindMounts))
-	if img.oem.PartitionLayout() == "minimal" {
+	if img.gadget.PartitionLayout() == "minimal" {
 		mountpoints = bindMounts
 	}
 
@@ -489,13 +489,13 @@ func (img BaseImage) BaseMount() string {
 
 func (img *BaseImage) GenericBootSetup(bootPath string) error {
 	// origins
-	if img.oem.PartitionLayout() == "system-AB" {
+	if img.gadget.PartitionLayout() == "system-AB" {
 		hardwareYamlPath := filepath.Join(img.baseMount, hardwareFileName)
 		kernelPath := filepath.Join(img.baseMount, img.hardware.Kernel)
 		initrdPath := filepath.Join(img.baseMount, img.hardware.Initrd)
 
 		// populate both A/B
-		for _, part := range img.oem.SystemParts() {
+		for _, part := range img.gadget.SystemParts() {
 			path := filepath.Join(bootPath, part)
 
 			printOut("Setting up", path)
@@ -518,22 +518,22 @@ func (img *BaseImage) GenericBootSetup(bootPath string) error {
 		}
 	}
 
-	oemRoot, err := img.oem.InstallPath()
+	gadgetRoot, err := img.gadget.InstallPath()
 	if err != nil {
 		return err
 	}
 
-	return setupBootAssetFiles(img.Boot(), bootPath, oemRoot, img.oem.OEM.Hardware.BootAssets.Files)
+	return setupBootAssetFiles(img.Boot(), bootPath, gadgetRoot, img.gadget.GADGET.Hardware.BootAssets.Files)
 }
 
 func (img *BaseImage) FlashExtra() error {
-	oemRoot, err := img.oem.InstallPath()
+	gadgetRoot, err := img.gadget.InstallPath()
 	if err != nil {
 		return err
 	}
 
-	if bootAssets := img.oem.OEM.Hardware.BootAssets; bootAssets != nil {
-		return setupBootAssetRawFiles(img.location, oemRoot, bootAssets.RawFiles)
+	if bootAssets := img.gadget.GADGET.Hardware.BootAssets; bootAssets != nil {
+		return setupBootAssetRawFiles(img.location, gadgetRoot, bootAssets.RawFiles)
 	}
 
 	return nil

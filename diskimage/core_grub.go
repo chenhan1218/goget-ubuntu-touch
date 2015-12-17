@@ -40,9 +40,9 @@ type CoreGrubImage struct {
 }
 
 // NewCoreGrubImage creates a new instance of CoreGrubImage
-func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, oem OemDescription, updateGrub bool) *CoreGrubImage {
+func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, gadget GadgetDescription, updateGrub bool) *CoreGrubImage {
 	var partCount int
-	switch oem.PartitionLayout() {
+	switch gadget.PartitionLayout() {
 	case "system-AB":
 		partCount = 5
 	case "minimal":
@@ -55,7 +55,7 @@ func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDesc
 			size:      size,
 			rootSize:  rootSize,
 			hardware:  hw,
-			oem:       oem,
+			gadget:    gadget,
 			partCount: partCount,
 		},
 		legacyGrub: updateGrub,
@@ -86,7 +86,7 @@ func (img *CoreGrubImage) Partition() error {
 	}
 
 	parted.addPart(grubLabel, "", fsNone, 4)
-	switch img.oem.PartitionLayout() {
+	switch img.gadget.PartitionLayout() {
 	case "system-AB":
 		parted.addPart(bootLabel, bootDir, fsFat32, 64)
 		parted.addPart(systemALabel, systemADir, fsExt4, img.rootSize)
@@ -176,7 +176,7 @@ func (img *CoreGrubImage) setupGrub() error {
 
 	var grubTarget string
 
-	arch := img.oem.Architecture()
+	arch := img.gadget.Architecture()
 
 	switch arch {
 	case "armhf":

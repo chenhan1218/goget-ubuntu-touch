@@ -83,7 +83,7 @@ func (f imageFlavor) rootSize() int {
 type Snapper struct {
 	Channel string `long:"channel" description:"Specify the channel to use" default:"stable"`
 	Output  string `long:"output" short:"o" description:"Name of the image file to create" required:"true"`
-	Oem     string `long:"oem" description:"The snappy oem package to base the image out of" default:"generic-amd64"`
+	Gadget  string `long:"gadget" description:"The snappy gadget package to base the image out of" default:"generic-amd64"`
 	StoreID string `long:"store" description:"Set an alternate store id."`
 	OS      string `long:"os" description:"path to the OS snap."`
 	Kernel  string `long:"kernel" description:"path to the kernel snap."`
@@ -100,7 +100,7 @@ type Snapper struct {
 
 	img             diskimage.CoreImage
 	hardware        diskimage.HardwareDescription
-	oem             diskimage.OemDescription
+	gadget          diskimage.GadgetDescription
 	stagingRootPath string
 
 	size int64
@@ -137,7 +137,7 @@ func (s *Snapper) systemImage() (*ubuntuimage.Image, error) {
 	channel := systemImageChannel(s.flavor.Channel(), s.Positional.Release, s.Channel)
 	// TODO: remove once azure channel is gone
 	if s.device == "" {
-		s.device = systemImageDeviceChannel(s.oem.Architecture())
+		s.device = systemImageDeviceChannel(s.gadget.Architecture())
 	}
 
 	deviceChannel, err := channels.GetDeviceChannel(globalArgs.Server, channel, s.device)
@@ -171,22 +171,22 @@ func (s *Snapper) install(systemPath string) error {
 	defer dirs.SetRootDir("/")
 
 	flags := s.installFlags()
-	oemSoftware := s.oem.OEM.Software
-	packageCount := len(s.Development.Install) + len(oemSoftware.BuiltIn) + len(oemSoftware.Preinstalled) + 3
-	if s.Oem != "" {
+	gadgetSoftware := s.gadget.GADGET.Software
+	packageCount := len(s.Development.Install) + len(gadgetSoftware.BuiltIn) + len(gadgetSoftware.Preinstalled) + 3
+	if s.Gadget != "" {
 		packageCount++
 	}
 
 	packageQueue := make([]string, 0, packageCount)
-	if s.Oem != "" {
-		packageQueue = append(packageQueue, s.Oem)
+	if s.Gadget != "" {
+		packageQueue = append(packageQueue, s.Gadget)
 	}
 	if s.OS != "" && s.Kernel != "" {
 		packageQueue = append(packageQueue, s.Kernel)
 		packageQueue = append(packageQueue, s.OS)
 	}
-	packageQueue = append(packageQueue, oemSoftware.BuiltIn...)
-	packageQueue = append(packageQueue, oemSoftware.Preinstalled...)
+	packageQueue = append(packageQueue, gadgetSoftware.BuiltIn...)
+	packageQueue = append(packageQueue, gadgetSoftware.Preinstalled...)
 	packageQueue = append(packageQueue, s.Development.Install...)
 
 	for _, snap := range packageQueue {
@@ -229,12 +229,12 @@ func (s *Snapper) install(systemPath string) error {
 	return nil
 }
 
-func (s *Snapper) extractOem(oemPackage string) error {
-	if oemPackage == "" {
+func (s *Snapper) extractGadget(gadgetPackage string) error {
+	if gadgetPackage == "" {
 		return nil
 	}
 
-	tempDir, err := ioutil.TempDir("", "oem")
+	tempDir, err := ioutil.TempDir("", "gadget")
 	if err != nil {
 		return err
 	}
@@ -255,12 +255,12 @@ func (s *Snapper) extractOem(oemPackage string) error {
 	})
 
 	// we need to download and extrac the squashfs snap
-	downloadedSnap := oemPackage
-	if !helpers.FileExists(oemPackage) {
+	downloadedSnap := gadgetPackage
+	if !helpers.FileExists(gadgetPackage) {
 		repo := snappy.NewUbuntuStoreSnapRepository()
-		snaps, err := repo.Details(snappy.SplitOrigin(oemPackage))
+		snaps, err := repo.Details(snappy.SplitOrigin(gadgetPackage))
 		if len(snaps) != 1 {
-			return fmt.Errorf("expected 1 oem snaps, found %d", len(snaps))
+			return fmt.Errorf("expected 1 gadget snaps, found %d", len(snaps))
 		}
 
 		pb := progress.NewTextProgress()
@@ -271,49 +271,49 @@ func (s *Snapper) extractOem(oemPackage string) error {
 	}
 
 	// the
-	fakeOemDir := filepath.Join(tempDir, "/oem/fake-oem/1.0/")
-	if err := os.MkdirAll(fakeOemDir, 0755); err != nil {
+	fakeGadgetDir := filepath.Join(tempDir, "/gadget/fake-gadget/1.0/")
+	if err := os.MkdirAll(fakeGadgetDir, 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command("unsquashfs", "-f", "-d", fakeOemDir, downloadedSnap)
+	cmd := exec.Command("unsquashfs", "-f", "-d", fakeGadgetDir, downloadedSnap)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
 	}
 
-	if err := s.loadOem(tempDir); err != nil {
+	if err := s.loadGadget(tempDir); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *Snapper) loadOem(systemPath string) error {
-	pkgs, err := filepath.Glob(filepath.Join(systemPath, "/oem/*/*/meta/package.yaml"))
+func (s *Snapper) loadGadget(systemPath string) error {
+	pkgs, err := filepath.Glob(filepath.Join(systemPath, "/gadget/*/*/meta/package.yaml"))
 	if err != nil {
 		return err
 	}
 
 	// checking for len(pkgs) > 2 due to the 'current' symlink
 	if len(pkgs) == 0 {
-		return errors.New("no oem package found")
+		return errors.New("no gadget package found")
 	} else if len(pkgs) > 2 || err != nil {
-		return errors.New("too many oem packages installed")
+		return errors.New("too many gadget packages installed")
 	}
 
 	f, err := ioutil.ReadFile(pkgs[0])
 	if err != nil {
-		return errors.New("failed to read oem yaml")
+		return errors.New("failed to read gadget yaml")
 	}
 
-	var oem diskimage.OemDescription
-	if err := yaml.Unmarshal([]byte(f), &oem); err != nil {
-		return errors.New("cannot decode oem yaml")
+	var gadget diskimage.GadgetDescription
+	if err := yaml.Unmarshal([]byte(f), &gadget); err != nil {
+		return errors.New("cannot decode gadget yaml")
 	}
-	s.oem = oem
-	s.oem.SetRoot(systemPath)
+	s.gadget = gadget
+	s.gadget.SetRoot(systemPath)
 
 	// ensure we can install snaps
-	arch.SetArchitecture(arch.ArchitectureType(s.oem.Architecture()))
+	arch.SetArchitecture(arch.ArchitectureType(s.gadget.Architecture()))
 
 	return nil
 }
@@ -328,7 +328,7 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 
 	bootDir := ""
 
-	switch s.oem.OEM.Hardware.Bootloader {
+	switch s.gadget.GADGET.Hardware.Bootloader {
 	// Running systems use a bindmount for /boot/grub, but
 	// since the system isn't booted, create the file in the
 	// real location.
@@ -356,7 +356,7 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 			Output:        s.Output,
 			Channel:       s.Channel,
 			DevicePart:    s.Development.DevicePart,
-			Gadget:        s.Oem,
+			Gadget:        s.Gadget,
 			DeveloperMode: s.Development.DeveloperMode,
 		},
 	}
@@ -471,7 +471,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 	systemPath := s.img.System()
 
 	// setup a fake system
-	if s.oem.PartitionLayout() == "minimal" {
+	if s.gadget.PartitionLayout() == "minimal" {
 		if err := os.MkdirAll(systemPath, 0755); err != nil {
 			return err
 		}
@@ -508,7 +508,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		}
 
 		// bind mount all relevant dirs
-		for _, d := range []string{"apps", "oem", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/", "tmp"} {
+		for _, d := range []string{"apps", "gadget", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/", "tmp"} {
 			dst, err := s.bindMount(d)
 			if err != nil {
 				return err
@@ -523,7 +523,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 			return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", dst).Run()
-		switch s.oem.OEM.Hardware.Bootloader {
+		switch s.gadget.GADGET.Hardware.Bootloader {
 		case "grub":
 			// grub needs this
 			grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
@@ -540,15 +540,15 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 			// TERRIBLE but we need a /boot/grub/grub.cfg so that
 			//          the kernel and os snap can be installed
-			glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "oem", "*", "*", "grub.cfg"))
+			glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "gadget", "*", "*", "grub.cfg"))
 			if err != nil {
 				return fmt.Errorf("grub.cfg glob failed: %s", err)
 			}
 			if len(glob) != 1 {
 				return fmt.Errorf("can not find a valid grub.cfg, found %v instead", len(glob))
 			}
-			oemGrubCfg := glob[0]
-			cmd = exec.Command("cp", oemGrubCfg, grubUbuntu)
+			gadgetGrubCfg := glob[0]
+			cmd = exec.Command("cp", gadgetGrubCfg, grubUbuntu)
 			o, err := cmd.CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("failed to copy %s %s", err, o)
@@ -580,7 +580,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 
 	// if the device is armhf, we can't to make this copy here since it's faster
 	// than on the device.
-	if s.oem.Architecture() == archArmhf && s.oem.PartitionLayout() == "system-AB" {
+	if s.gadget.Architecture() == archArmhf && s.gadget.PartitionLayout() == "system-AB" {
 		printOut("Replicating system-a into system-b")
 
 		src := fmt.Sprintf("%s/.", systemPath)
@@ -621,7 +621,7 @@ func (s Snapper) printSummary() {
 	fmt.Println("New image complete")
 	fmt.Println("Summary:")
 	fmt.Println(" Output:", s.Output)
-	fmt.Println(" Architecture:", s.oem.Architecture())
+	fmt.Println(" Architecture:", s.gadget.Architecture())
 	fmt.Println(" Channel:", s.Channel)
 	fmt.Println(" Version:", globalArgs.Revision)
 }
@@ -707,8 +707,8 @@ func (s *Snapper) create() (err error) {
 		os.Setenv("UBUNTU_STORE_ID", s.StoreID)
 	}
 
-	fmt.Println("Determining oem configuration")
-	if err := s.extractOem(s.Oem); err != nil {
+	fmt.Println("Determining gadget configuration")
+	if err := s.extractGadget(s.Gadget); err != nil {
 		return err
 	}
 	defer os.RemoveAll(s.stagingRootPath)
@@ -721,7 +721,7 @@ func (s *Snapper) create() (err error) {
 	}
 
 	systemImageFiles := []Files{}
-	switch s.oem.OEM.Hardware.PartitionLayout {
+	switch s.gadget.GADGET.Hardware.PartitionLayout {
 	case "system-AB":
 		si, err := s.getSystemImage()
 		if err != nil {
@@ -734,18 +734,18 @@ func (s *Snapper) create() (err error) {
 		}
 	}
 
-	switch s.oem.OEM.Hardware.Bootloader {
+	switch s.gadget.GADGET.Hardware.Bootloader {
 	case "grub":
 		legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
 		if legacy {
 			printOut("Using legacy setup")
 		}
 
-		s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem, legacy)
+		s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.gadget, legacy)
 	case "u-boot":
-		s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.oem)
+		s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.gadget)
 	default:
-		return errors.New("no hardware description in OEM snap")
+		return errors.New("no hardware description in GADGET snap")
 	}
 
 	printOut("Partitioning...")

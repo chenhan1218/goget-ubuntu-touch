@@ -79,20 +79,20 @@ func (coreCmd *CoreCmd) Execute(args []string) error {
 
 	if !coreCmd.Deprecated.Cloud {
 		coreCmd.customizationFunc = append(coreCmd.customizationFunc, coreCmd.setupCloudInit)
-		coreCmd.customizationFunc = append(coreCmd.customizationFunc, coreCmd.setupOemConfigs)
+		coreCmd.customizationFunc = append(coreCmd.customizationFunc, coreCmd.setupGadgetConfigs)
 	}
 
 	return coreCmd.create()
 }
 
 // this is a hackish way to get the config in place
-func (coreCmd *CoreCmd) setupOemConfigs() error {
-	modprobeDContent := coreCmd.oem.Config.UbuntuCore.Modprobe
+func (coreCmd *CoreCmd) setupGadgetConfigs() error {
+	modprobeDContent := coreCmd.gadget.Config.UbuntuCore.Modprobe
 	if modprobeDContent == nil {
 		return nil
 	}
 
-	fmt.Println("Setting up oem hooks...")
+	fmt.Println("Setting up gadget hooks...")
 
 	writablePath := coreCmd.img.Writable()
 

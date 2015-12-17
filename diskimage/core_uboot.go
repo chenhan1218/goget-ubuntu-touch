@@ -66,9 +66,9 @@ type FlashInstructions struct {
 	Bootloader []string `yaml:"bootloader"`
 }
 
-func NewCoreUBootImage(location string, size int64, rootSize int, hw HardwareDescription, oem OemDescription) *CoreUBootImage {
+func NewCoreUBootImage(location string, size int64, rootSize int, hw HardwareDescription, gadget GadgetDescription) *CoreUBootImage {
 	var partCount int
-	switch oem.PartitionLayout() {
+	switch gadget.PartitionLayout() {
 	case "system-AB":
 		partCount = 4
 	case "minimal":
@@ -78,7 +78,7 @@ func NewCoreUBootImage(location string, size int64, rootSize int, hw HardwareDes
 	return &CoreUBootImage{
 		BaseImage{
 			hardware:  hw,
-			oem:       oem,
+			gadget:    gadget,
 			location:  location,
 			size:      size,
 			rootSize:  rootSize,
@@ -98,7 +98,7 @@ func (img *CoreUBootImage) Partition() error {
 		return err
 	}
 
-	switch img.oem.PartitionLayout() {
+	switch img.gadget.PartitionLayout() {
 	case "system-AB":
 		parted.addPart(bootLabel, bootDir, fsFat32, 64)
 		parted.addPart(systemALabel, systemADir, fsExt4, 1024)
@@ -125,7 +125,7 @@ func (img CoreUBootImage) SetupBoot() error {
 	}
 
 	// populate both A/B
-	for _, part := range img.oem.SystemParts() {
+	for _, part := range img.gadget.SystemParts() {
 		bootDtbPath := filepath.Join(bootPath, part, "dtbs")
 		if err := img.provisionDtbs(bootDtbPath); err != nil {
 			return err
@@ -139,7 +139,7 @@ func (img CoreUBootImage) SetupBoot() error {
 	defer snappySystemFile.Close()
 
 	var fdtfile string
-	if platform := img.oem.Platform(); platform != "" {
+	if platform := img.gadget.Platform(); platform != "" {
 		fdtfile = fmt.Sprintf("fdtfile=%s.dtb", platform)
 	}
 
@@ -175,19 +175,19 @@ func (img CoreUBootImage) provisionDtbs(bootDtbPath string) error {
 		return err
 	}
 
-	dtb := filepath.Join(dtbsPath, fmt.Sprintf("%s.dtb", img.oem.Platform()))
+	dtb := filepath.Join(dtbsPath, fmt.Sprintf("%s.dtb", img.gadget.Platform()))
 
 	// if there is a specific dtb for the platform, copy it.
-	// First look in oem and then in device.
-	if oemDtb := img.oem.OEM.Hardware.Dtb; oemDtb != "" && img.oem.Platform() != "" {
-		oemRoot, err := img.oem.InstallPath()
+	// First look in gadget and then in device.
+	if gadgetDtb := img.gadget.GADGET.Hardware.Dtb; gadgetDtb != "" && img.gadget.Platform() != "" {
+		gadgetRoot, err := img.gadget.InstallPath()
 		if err != nil {
 			return err
 		}
 
-		oemDtb := filepath.Join(oemRoot, oemDtb)
+		gadgetDtb := filepath.Join(gadgetRoot, gadgetDtb)
 		dst := filepath.Join(bootDtbPath, filepath.Base(dtb))
-		if err := sysutils.CopyFile(oemDtb, dst); err != nil {
+		if err := sysutils.CopyFile(gadgetDtb, dst); err != nil {
 			return err
 		}
 	} else if _, err := os.Stat(dtb); err == nil {
