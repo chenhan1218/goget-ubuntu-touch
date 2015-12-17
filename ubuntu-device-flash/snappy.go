@@ -157,7 +157,7 @@ func (s *Snapper) systemImage() (*ubuntuimage.Image, error) {
 }
 
 func (s *Snapper) installFlags() snappy.InstallFlags {
-	flags := snappy.InhibitHooks | snappy.AllowOEM
+	flags := snappy.InhibitHooks | snappy.AllowGadget
 
 	if s.Development.DeveloperMode {
 		flags |= snappy.AllowUnauthenticated
@@ -356,7 +356,7 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 			Output:        s.Output,
 			Channel:       s.Channel,
 			DevicePart:    s.Development.DevicePart,
-			Oem:           s.Oem,
+			Gadget:        s.Oem,
 			DeveloperMode: s.Development.DeveloperMode,
 		},
 	}

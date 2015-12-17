@@ -122,7 +122,7 @@ type OemDescription struct {
 		Store *struct {
 			ID string `yaml:"id,omitempty"`
 		}
-	} `yaml:"oem,omitempty"`
+	} `yaml:"gadget,omitempty"`
 
 	Config struct {
 		UbuntuCore struct {
