@@ -224,6 +224,23 @@ func (s *Snapper) install(systemPath string) error {
 				}
 			}
 		}
+
+		// HORRIBLE, snappy.Install() will check if running
+		// on a grub system based on the gadget snap and if
+		// it is grub it will not extract the kernel/os
+		//
+		// HOWEVER this won't work in u-d-f because there
+		// is no current symlink so kernel.go always unpacks
+		// the kernel. undo this here
+		if s.gadget.GADGET.Hardware.Bootloader == "grub" {
+			dirs, _ := filepath.Glob(filepath.Join(s.img.Boot(), "/EFI/ubuntu/grub/*.snap"))
+			for _, d := range dirs {
+				fmt.Printf("Removing unneeded: %s\n", d)
+				if err := os.RemoveAll(d); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
