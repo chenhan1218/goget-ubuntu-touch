@@ -124,6 +124,9 @@ func (s Snapper) sanityCheck() error {
 	if syscall.Getuid() != 0 {
 		return errors.New("command requires sudo/pkexec (root)")
 	}
+	if s.Positional.Release == "15.04" {
+		return errors.New("building 15.04 core images is no longer supported. Please use the ppa:snappy-dev/tools 15.04 version of this tool")
+	}
 
 	return nil
 }
