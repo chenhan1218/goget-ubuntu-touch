@@ -17,7 +17,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 
 	"gopkg.in/yaml.v2"
@@ -208,16 +208,24 @@ func (s *Snapper) install(systemPath string) error {
 		snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
 		for _, fullname := range snaps {
 			bootvar := ""
-			name := filepath.Base(fullname)
 
-			// FIXME: terrible way to detect kernel/os snaps
-			switch {
-			case strings.Contains(name, "core"):
+			// detect type
+			snapFile, err := snap.Open(fullname)
+			if err != nil {
+				return fmt.Errorf("can not read %v", fullname)
+			}
+			info, err := snapFile.Info()
+			if err != nil {
+				return fmt.Errorf("can not get info for %v", fullname)
+			}
+			switch info.Type {
+			case snap.TypeOS:
 				bootvar = "snappy_os"
-			case strings.Contains(name, "linux"):
+			case snap.TypeKernel:
 				bootvar = "snappy_kernel"
 			}
 
+			name := filepath.Base(fullname)
 			if bootvar != "" {
 				if err := partition.SetBootVar(bootvar, name); err != nil {
 					return err
