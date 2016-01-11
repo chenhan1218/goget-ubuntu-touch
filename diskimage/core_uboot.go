@@ -104,7 +104,7 @@ func (img *CoreUBootImage) Partition() error {
 		parted.addPart(systemALabel, systemADir, fsExt4, 1024)
 		parted.addPart(systemBLabel, systemBDir, fsExt4, 1024)
 	case "minimal":
-		parted.addPart(bootLabel, bootDir, fsFat32, 512)
+		parted.addPart(bootLabel, bootDir, fsFat32, 128)
 	}
 	parted.addPart(writableLabel, writableDir, fsExt4, -1)
 
