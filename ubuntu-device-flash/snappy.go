@@ -385,6 +385,8 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 			Channel:       s.Channel,
 			DevicePart:    s.Development.DevicePart,
 			Gadget:        s.Gadget,
+			OS:            s.Os,
+			Kernel:        s.Kernel,
 			DeveloperMode: s.Development.DeveloperMode,
 		},
 	}
