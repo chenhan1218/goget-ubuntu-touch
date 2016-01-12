@@ -536,7 +536,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		}
 
 		// bind mount all relevant dirs
-		for _, d := range []string{"apps", "gadget", "var/lib/snappy", "var/lib/apps", "etc/systemd/system/", "tmp"} {
+		for _, d := range []string{"snaps", "var/lib/snaps", "var/lib/snappy", "etc/systemd/system/", "tmp"} {
 			dst, err := s.bindMount(d)
 			if err != nil {
 				return err
