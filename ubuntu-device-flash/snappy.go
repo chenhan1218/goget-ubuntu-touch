@@ -368,9 +368,7 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 
 	i := provisioning.InstallYaml{
 		InstallMeta: provisioning.InstallMeta{
-			Timestamp:         time.Now(),
-			InitialVersion:    fmt.Sprintf("%d", globalArgs.Revision),
-			SystemImageServer: globalArgs.Server,
+			Timestamp: time.Now(),
 		},
 		InstallTool: provisioning.InstallTool{
 			Name: filepath.Base(selfPath),
@@ -385,7 +383,7 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 			Channel:       s.Channel,
 			DevicePart:    s.Development.DevicePart,
 			Gadget:        s.Gadget,
-			OS:            s.Os,
+			OS:            s.OS,
 			Kernel:        s.Kernel,
 			DeveloperMode: s.Development.DeveloperMode,
 		},
