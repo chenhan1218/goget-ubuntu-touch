@@ -196,7 +196,8 @@ func (s *Snapper) install(systemPath string) error {
 		fmt.Println("Installing", snap)
 
 		pb := progress.NewTextProgress()
-		if _, err := snappy.Install(snap, flags, pb); err != nil {
+		name := fmt.Sprintf("%s/%s", snap, s.Channel)
+		if _, err := snappy.Install(name, flags, pb); err != nil {
 			return err
 		}
 	}
@@ -286,7 +287,8 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	downloadedSnap := gadgetPackage
 	if !helpers.FileExists(gadgetPackage) {
 		repo := snappy.NewUbuntuStoreSnapRepository()
-		snaps, err := repo.Details(snappy.SplitOrigin(gadgetPackage))
+		name := fmt.Sprintf("%s/%s", gadgetPackage, s.Channel)
+		snaps, err := repo.Details(name, "")
 		if len(snaps) != 1 {
 			return fmt.Errorf("expected 1 gadget snaps, found %d", len(snaps))
 		}
@@ -459,7 +461,7 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 		Channel: s.Channel,
 	})
 	m := snappy.NewMetaStoreRepository()
-	parts, err := m.Details(snappy.SplitOrigin(osPackage))
+	parts, err := m.Details(fmt.Sprintf("%s/%s", osPackage, s.Channel), "")
 	if err != nil {
 		return "", err
 	}
