@@ -87,6 +87,12 @@ type BootAssetRawFiles struct {
 	Offset string `yaml:"offset"`
 }
 
+type BootAssetRawPartitions struct {
+	Name string `yaml:"name"`
+	Size string `yaml:"size"`
+	Type string `yaml:"type"`
+}
+
 type BootAssetFiles struct {
 	Path string `yaml:"path"`
 	// Target is the deprecated target relative to $bootloader dir
@@ -96,8 +102,9 @@ type BootAssetFiles struct {
 }
 
 type BootAssets struct {
-	Files    []BootAssetFiles    `yaml:"files,omitempty"`
-	RawFiles []BootAssetRawFiles `yaml:"raw-files,omitempty"`
+	Files         []BootAssetFiles         `yaml:"files,omitempty"`
+	RawFiles      []BootAssetRawFiles      `yaml:"raw-files,omitempty"`
+	RawPartitions []BootAssetRawPartitions `yaml:"raw-partitions,omitempty"`
 }
 
 type GadgetDescription struct {
@@ -203,6 +210,7 @@ type BaseImage struct {
 	partCount  int
 	size       int64
 	rootSize   int
+	label      string
 }
 
 var bindMounts = []string{"dev", "sys", "proc", filepath.Join("sys", "firmware")}
@@ -533,6 +541,12 @@ func (img *BaseImage) FlashExtra() error {
 	}
 
 	if bootAssets := img.gadget.GADGET.Hardware.BootAssets; bootAssets != nil {
+		if bootAssets.RawPartitions != nil {
+			if err := setupBootAssetRawPartitions(img.location, img.partCount, bootAssets.RawPartitions); err != nil {
+				return err
+			}
+		}
+
 		return setupBootAssetRawFiles(img.location, gadgetRoot, bootAssets.RawFiles)
 	}
 

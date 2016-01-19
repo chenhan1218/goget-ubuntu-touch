@@ -40,7 +40,7 @@ type CoreGrubImage struct {
 }
 
 // NewCoreGrubImage creates a new instance of CoreGrubImage
-func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, gadget GadgetDescription, updateGrub bool) *CoreGrubImage {
+func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, gadget GadgetDescription, updateGrub bool, label string) *CoreGrubImage {
 	var partCount int
 	switch gadget.PartitionLayout() {
 	case "system-AB":
@@ -57,6 +57,7 @@ func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDesc
 			hardware:  hw,
 			gadget:    gadget,
 			partCount: partCount,
+			label:     label,
 		},
 		legacyGrub: updateGrub,
 	}
