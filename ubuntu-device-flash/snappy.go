@@ -196,7 +196,10 @@ func (s *Snapper) install(systemPath string) error {
 		fmt.Println("Installing", snap)
 
 		pb := progress.NewTextProgress()
-		name := fmt.Sprintf("%s/%s", snap, s.Channel)
+		name := snap
+		if !helpers.FileExists(snap) {
+			name = fmt.Sprintf("%s/%s", snap, s.Channel)
+		}
 		if _, err := snappy.Install(name, flags, pb); err != nil {
 			return err
 		}
