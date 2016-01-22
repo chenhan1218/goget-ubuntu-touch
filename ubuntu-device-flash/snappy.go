@@ -212,6 +212,11 @@ func (s *Snapper) install(systemPath string) error {
 	// there is also no mounted os/kernel snap in the systemPath
 	// all we have here is the blobs
 	if s.OS != "" && s.Kernel != "" {
+		bootloader, err := partition.FindBootloader()
+		if err != nil {
+			return fmt.Errorf("can not set kernel/os bootvars: %s", err)
+		}
+
 		snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
 		for _, fullname := range snaps {
 			bootvar := ""
@@ -234,7 +239,7 @@ func (s *Snapper) install(systemPath string) error {
 
 			name := filepath.Base(fullname)
 			if bootvar != "" {
-				if err := partition.SetBootVar(bootvar, name); err != nil {
+				if err := bootloader.SetBootVar(bootvar, name); err != nil {
 					return err
 				}
 			}
