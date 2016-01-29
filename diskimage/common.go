@@ -89,7 +89,8 @@ type BootAssetRawFiles struct {
 
 type BootAssetRawPartitions struct {
 	Name string `yaml:"name"`
-	Size string `yaml:"size"`
+	Size int    `yaml:"size"`
+	Pos  int    `yaml:"pos"`
 	Type string `yaml:"type"`
 }
 

@@ -89,21 +89,27 @@ func setupBootAssetRawPartitions(imagePath string, partCount int, rawPartitions 
 	printOut("Setting up raw boot asset partitions for", imagePath, "...")
 	var part int = partCount
 
+	pos := 0
 	for _, asset := range rawPartitions {
 		part += 1
 
-		size, err := strconv.Atoi(asset.Size)
-		if err != nil {
-			return err
-		}
-		size = size * 2
-
 		printOut("creating partition:", asset.Name)
+		// override position if specified, otherwise use the
+		// previous position
+		if asset.Pos > 0 {
+			pos = asset.Pos
+		}
 
-		opts := fmt.Sprintf("0:0:+%d", size)
-		if err := exec.Command("sgdisk", "-a", "1", "-n", opts, imagePath).Run(); err != nil {
+		// why * 2?
+		size := asset.Size * 2
+
+		opts := fmt.Sprintf("%d:%d:+%d", part, pos, size)
+		if output, err := exec.Command("sgdisk", "-a", "1", "-n", opts, imagePath).CombinedOutput(); err != nil {
+			println(string(output))
 			return err
 		}
+		// move postition forward
+		pos += size
 
 		opts = fmt.Sprintf("%d:%s", part, asset.Name)
 		if err := exec.Command("sgdisk", "-c", opts, imagePath).Run(); err != nil {
@@ -114,10 +120,9 @@ func setupBootAssetRawPartitions(imagePath string, partCount int, rawPartitions 
 		if err := exec.Command("sgdisk", "-t", opts, imagePath).Run(); err != nil {
 			return err
 		}
-
 	}
 
-	printOut("sorting partitions")
+	printOut("aligning partitions")
 	if err := exec.Command("sgdisk", "-s", imagePath).Run(); err != nil {
 		return err
 	}

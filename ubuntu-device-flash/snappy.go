@@ -326,7 +326,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 }
 
 func (s *Snapper) loadGadget(systemPath string) error {
-	pkgs, err := filepath.Glob(filepath.Join(systemPath, "/gadget/*/*/meta/package.yaml"))
+	pkgs, err := filepath.Glob(filepath.Join(systemPath, "/gadget/*/*/meta/snap.yaml"))
 	if err != nil {
 		return err
 	}
