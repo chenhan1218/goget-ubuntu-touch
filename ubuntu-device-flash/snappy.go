@@ -282,6 +282,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	}
 
 	s.stagingRootPath = tempDir
+	os.MkdirAll(filepath.Join(tempDir, "/snaps"), 0755)
 
 	dirs.SetRootDir(tempDir)
 	defer dirs.SetRootDir("/")
@@ -302,7 +303,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		}
 
 		pb := progress.NewTextProgress()
-		downloadedSnap, err = snaps[0].(*snappy.RemoteSnapPart).Download(pb)
+		downloadedSnap, err = repo.Download(snaps[0].(*snappy.RemoteSnapPart), pb)
 		if err != nil {
 			return err
 		}
@@ -468,7 +469,7 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 		Series:  s.Positional.Release,
 		Channel: s.Channel,
 	})
-	m := snappy.NewMetaStoreRepository()
+	m := snappy.NewUbuntuStoreSnapRepository()
 	parts, err := m.Details(fmt.Sprintf("%s/%s", osPackage, s.Channel), "")
 	if err != nil {
 		return "", err
@@ -478,7 +479,7 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 	}
 
 	pb := progress.NewTextProgress()
-	path, err := parts[0].(*snappy.RemoteSnapPart).Download(pb)
+	path, err := m.Download(parts[0].(*snappy.RemoteSnapPart), pb)
 	if err != nil {
 		return "", err
 	}
