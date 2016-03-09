@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/ubuntu-core/snappy/helpers"
 )
 
 // This program is free software: you can redistribute it and/or modify it
@@ -103,7 +101,8 @@ func (coreCmd *CoreCmd) setupGadgetConfigs() error {
 
 	// first we need to copy all the files in modprobe.d
 	systemModprobeDir := filepath.Join(coreCmd.img.System(), "etc", "modprobe.d")
-	if err := helpers.RSyncWithDelete(systemModprobeDir, modprobeDir); err != nil {
+	// FIXME: can we do "cp -a" here?
+	if err := RSyncWithDelete(systemModprobeDir, modprobeDir); err != nil {
 		return err
 	}
 

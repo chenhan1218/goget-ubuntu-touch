@@ -22,7 +22,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
@@ -113,7 +113,7 @@ type Snapper struct {
 
 func (s Snapper) sanityCheck() error {
 	// we don't want to overwrite the output, people might get angry :-)
-	if helpers.FileExists(s.Output) {
+	if osutil.FileExists(s.Output) {
 		return fmt.Errorf("Giving up, the desired target output file %#v already exists", s.Output)
 	}
 
@@ -197,10 +197,7 @@ func (s *Snapper) install(systemPath string) error {
 
 		pb := progress.NewTextProgress()
 		name := snap
-		if !helpers.FileExists(snap) {
-			name = fmt.Sprintf("%s/%s", snap, s.Channel)
-		}
-		if _, err := snappy.Install(name, flags, pb); err != nil {
+		if _, err := snappy.Install(name, s.Channel, flags, pb); err != nil {
 			return err
 		}
 	}
@@ -294,10 +291,9 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 
 	// we need to download and extrac the squashfs snap
 	downloadedSnap := gadgetPackage
-	if !helpers.FileExists(gadgetPackage) {
+	if !osutil.FileExists(gadgetPackage) {
 		repo := snappy.NewUbuntuStoreSnapRepository()
-		name := fmt.Sprintf("%s/%s", gadgetPackage, s.Channel)
-		snaps, err := repo.Details(name, "")
+		snaps, err := repo.Details(gadgetPackage, "", s.Channel)
 		if len(snaps) != 1 {
 			return fmt.Errorf("expected 1 gadget snaps, found %d", len(snaps))
 		}
@@ -470,7 +466,7 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 		Channel: s.Channel,
 	})
 	m := snappy.NewUbuntuStoreSnapRepository()
-	parts, err := m.Details(fmt.Sprintf("%s/%s", osPackage, s.Channel), "")
+	parts, err := m.Details(osPackage, "", s.Channel)
 	if err != nil {
 		return "", err
 	}
