@@ -192,6 +192,8 @@ func (img *CoreGrubImage) setupGrub() error {
 		grubTarget = "x86_64-efi"
 	case "i386":
 		grubTarget = "i386-efi"
+	case "arm64":
+		grubTarget = "arm64-efi"
 	default:
 		return fmt.Errorf("unsupported architecture for GRUB on EFI: %s", arch)
 	}
