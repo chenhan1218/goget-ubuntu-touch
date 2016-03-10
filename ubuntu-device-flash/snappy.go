@@ -198,7 +198,7 @@ func (s *Snapper) install(systemPath string) error {
 		pb := progress.NewTextProgress()
 		name := snap
 		if _, err := snappy.Install(name, s.Channel, flags, pb); err != nil {
-			return err
+			return fmt.Errorf("failed to install %q from %q: %s", name, s.Channel, err)
 		}
 	}
 
