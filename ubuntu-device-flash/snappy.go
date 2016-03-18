@@ -293,13 +293,13 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
 		repo := snappy.NewUbuntuStoreSnapRepository()
-		snaps, err := repo.Details(gadgetPackage, "", s.Channel)
-		if len(snaps) != 1 {
-			return fmt.Errorf("expected 1 gadget snaps, found %d", len(snaps))
+		snap, err := repo.Snap(gadgetPackage, s.Channel)
+		if err != nil {
+			return fmt.Errorf("expected a gadget snaps: %s", err)
 		}
 
 		pb := progress.NewTextProgress()
-		downloadedSnap, err = repo.Download(snaps[0].(*snappy.RemoteSnapPart), pb)
+		downloadedSnap, err = repo.Download(snap, pb)
 		if err != nil {
 			return err
 		}
@@ -466,16 +466,12 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 		Channel: s.Channel,
 	})
 	m := snappy.NewUbuntuStoreSnapRepository()
-	parts, err := m.Details(osPackage, "", s.Channel)
+	snap, err := m.Snap(osPackage, s.Channel)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
-	if len(parts) != 1 {
-		return "", fmt.Errorf("can not find OS part")
-	}
-
 	pb := progress.NewTextProgress()
-	path, err := m.Download(parts[0].(*snappy.RemoteSnapPart), pb)
+	path, err := m.Download(snap, pb)
 	if err != nil {
 		return "", err
 	}
