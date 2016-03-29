@@ -292,7 +292,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	// we need to download and extrac the squashfs snap
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
-		repo := snappy.NewUbuntuStoreSnapRepository()
+		repo := snappy.NewConfiguredUbuntuStoreSnapRepository()
 		snap, err := repo.Snap(gadgetPackage, s.Channel)
 		if err != nil {
 			return fmt.Errorf("expected a gadget snaps: %s", err)
@@ -465,7 +465,7 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 		Series:  s.Positional.Release,
 		Channel: s.Channel,
 	})
-	m := snappy.NewUbuntuStoreSnapRepository()
+	m := snappy.NewConfiguredUbuntuStoreSnapRepository()
 	snap, err := m.Snap(osPackage, s.Channel)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
