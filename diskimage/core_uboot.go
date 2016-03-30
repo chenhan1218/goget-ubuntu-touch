@@ -184,7 +184,7 @@ func (img CoreUBootImage) provisionDtbs(bootDtbPath string) error {
 
 	// if there is a specific dtb for the platform, copy it.
 	// First look in gadget and then in device.
-	if gadgetDtb := img.gadget.GADGET.Hardware.Dtb; gadgetDtb != "" && img.gadget.Platform() != "" {
+	if gadgetDtb := img.gadget.Gadget.Hardware.Dtb; gadgetDtb != "" && img.gadget.Platform() != "" {
 		gadgetRoot, err := img.gadget.InstallPath()
 		if err != nil {
 			return err

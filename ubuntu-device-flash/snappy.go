@@ -174,7 +174,7 @@ func (s *Snapper) install(systemPath string) error {
 	defer dirs.SetRootDir("/")
 
 	flags := s.installFlags()
-	gadgetSoftware := s.gadget.GADGET.Software
+	gadgetSoftware := s.gadget.Gadget.Software
 	packageCount := len(s.Development.Install) + len(gadgetSoftware.BuiltIn) + len(gadgetSoftware.Preinstalled) + 3
 	if s.Gadget != "" {
 		packageCount++
@@ -249,7 +249,7 @@ func (s *Snapper) install(systemPath string) error {
 		// HOWEVER this won't work in u-d-f because there
 		// is no current symlink so kernel.go always unpacks
 		// the kernel. undo this here
-		if s.gadget.GADGET.Hardware.Bootloader == "grub" {
+		if s.gadget.Gadget.Hardware.Bootloader == "grub" {
 			dirs, _ := filepath.Glob(filepath.Join(s.img.Boot(), "/EFI/ubuntu/grub/*.snap"))
 			for _, d := range dirs {
 				fmt.Printf("Removing unneeded: %s\n", d)
@@ -363,7 +363,7 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 
 	bootDir := ""
 
-	switch s.gadget.GADGET.Hardware.Bootloader {
+	switch s.gadget.Gadget.Hardware.Bootloader {
 	// Running systems use a bindmount for /boot/grub, but
 	// since the system isn't booted, create the file in the
 	// real location.
@@ -554,7 +554,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 			return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", dst).Run()
-		switch s.gadget.GADGET.Hardware.Bootloader {
+		switch s.gadget.Gadget.Hardware.Bootloader {
 		case "grub":
 			// grub needs this
 			grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
@@ -752,7 +752,7 @@ func (s *Snapper) create() (err error) {
 	}
 
 	systemImageFiles := []Files{}
-	switch s.gadget.GADGET.Hardware.PartitionLayout {
+	switch s.gadget.Gadget.Hardware.PartitionLayout {
 	case "system-AB":
 		si, err := s.getSystemImage()
 		if err != nil {
@@ -765,7 +765,7 @@ func (s *Snapper) create() (err error) {
 		}
 	}
 
-	switch s.gadget.GADGET.Hardware.Bootloader {
+	switch s.gadget.Gadget.Hardware.Bootloader {
 	case "grub":
 		legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
 		if legacy {
@@ -780,7 +780,7 @@ func (s *Snapper) create() (err error) {
 		}
 		s.img = diskimage.NewCoreUBootImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.gadget, label)
 	default:
-		return errors.New("no hardware description in GADGET snap")
+		return errors.New("no hardware description in Gadget snap")
 	}
 
 	printOut("Partitioning...")

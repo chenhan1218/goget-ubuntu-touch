@@ -112,7 +112,7 @@ type GadgetDescription struct {
 	Name    string `yaml:"name"`
 	Version string `yaml:"version"`
 
-	GADGET struct {
+	Gadget struct {
 		Hardware struct {
 			Bootloader      string      `yaml:"bootloader"`
 			PartitionLayout string      `yaml:"partition-layout"`
@@ -149,7 +149,7 @@ func (o *GadgetDescription) SetRoot(rootDir string) {
 //
 // The default is to return a flat structure for any unknown layout.
 func (o *GadgetDescription) SystemParts() []string {
-	switch o.GADGET.Hardware.PartitionLayout {
+	switch o.Gadget.Hardware.PartitionLayout {
 	case partLayoutSystemAB:
 		return []string{"a", "b"}
 	default:
@@ -172,23 +172,23 @@ func (o GadgetDescription) InstallPath() (string, error) {
 }
 
 func (o GadgetDescription) Architecture() string {
-	return o.GADGET.Hardware.Architecture
+	return o.Gadget.Hardware.Architecture
 }
 
 func (o *GadgetDescription) SetArchitecture(architecture string) {
-	o.GADGET.Hardware.Architecture = architecture
+	o.Gadget.Hardware.Architecture = architecture
 }
 
 func (o GadgetDescription) PartitionLayout() string {
-	return o.GADGET.Hardware.PartitionLayout
+	return o.Gadget.Hardware.PartitionLayout
 }
 
 func (o GadgetDescription) Platform() string {
-	return o.GADGET.Hardware.Platform
+	return o.Gadget.Hardware.Platform
 }
 
 func (o *GadgetDescription) SetPlatform(platform string) {
-	o.GADGET.Hardware.Platform = platform
+	o.Gadget.Hardware.Platform = platform
 }
 
 func sectorSize(dev string) (string, error) {
@@ -532,7 +532,7 @@ func (img *BaseImage) GenericBootSetup(bootPath string) error {
 		return err
 	}
 
-	return setupBootAssetFiles(img.Boot(), bootPath, gadgetRoot, img.gadget.GADGET.Hardware.BootAssets.Files)
+	return setupBootAssetFiles(img.Boot(), bootPath, gadgetRoot, img.gadget.Gadget.Hardware.BootAssets.Files)
 }
 
 func (img *BaseImage) FlashExtra() error {
@@ -541,7 +541,7 @@ func (img *BaseImage) FlashExtra() error {
 		return err
 	}
 
-	if bootAssets := img.gadget.GADGET.Hardware.BootAssets; bootAssets != nil {
+	if bootAssets := img.gadget.Gadget.Hardware.BootAssets; bootAssets != nil {
 		if bootAssets.RawPartitions != nil {
 			if err := setupBootAssetRawPartitions(img.location, img.partCount, bootAssets.RawPartitions); err != nil {
 				return err
