@@ -289,7 +289,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		Channel: s.Channel,
 	})
 
-	// we need to download and extrac the squashfs snap
+	// we need to download and extract the squashfs snap
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
 		repo := snappy.NewConfiguredUbuntuStoreSnapRepository()
@@ -305,8 +305,9 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		}
 	}
 
-	// the
-	fakeGadgetDir := filepath.Join(tempDir, "/gadget/fake-gadget/1.0/")
+	// the fake snap needs to be in an expected location so that
+	// s.loadGadget() is happy
+	fakeGadgetDir := filepath.Join(tempDir, "/gadget/fake-gadget/1.0-fake/")
 	if err := os.MkdirAll(fakeGadgetDir, 0755); err != nil {
 		return err
 	}
@@ -347,7 +348,7 @@ func (s *Snapper) loadGadget(systemPath string) error {
 	s.gadget = gadget
 	s.gadget.SetRoot(systemPath)
 
-	// ensure we can install snaps
+	// ensure we can download and install snaps
 	arch.SetArchitecture(arch.ArchitectureType(s.gadget.Architecture()))
 
 	return nil
@@ -609,20 +610,6 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		}
 	}
 
-	// if the device is armhf, we can't to make this copy here since it's faster
-	// than on the device.
-	if s.gadget.Architecture() == archArmhf && s.gadget.PartitionLayout() == "system-AB" {
-		printOut("Replicating system-a into system-b")
-
-		src := fmt.Sprintf("%s/.", systemPath)
-		dst := fmt.Sprintf("%s/system-b", s.img.BaseMount())
-
-		cmd := exec.Command("cp", "-r", "--preserve=all", src, dst)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to replicate image contents: %s", out)
-		}
-	}
-
 	return s.writeInstallYaml(s.img.Boot())
 }
 
@@ -753,12 +740,6 @@ func (s *Snapper) create() (err error) {
 
 	systemImageFiles := []Files{}
 	switch s.gadget.Gadget.Hardware.PartitionLayout {
-	case "system-AB":
-		si, err := s.getSystemImage()
-		if err != nil {
-			return err
-		}
-		systemImageFiles = si
 	case "minimal":
 		if s.OS == "" && s.Kernel == "" {
 			return errors.New("kernel and os have to be specified to support partition-layout: minimal")

@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-
-	"launchpad.net/goget-ubuntu-touch/sysutils"
 )
 
 // This program is free software: you can redistribute it and/or modify it
@@ -45,10 +43,6 @@ const (
 	hardwareFileName = "hardware.yaml"
 	kernelFileName   = "vmlinuz"
 	initrdFileName   = "initrd.img"
-)
-
-const (
-	partLayoutSystemAB = "system-AB"
 )
 
 var (
@@ -150,8 +144,6 @@ func (o *GadgetDescription) SetRoot(rootDir string) {
 // The default is to return a flat structure for any unknown layout.
 func (o *GadgetDescription) SystemParts() []string {
 	switch o.Gadget.Hardware.PartitionLayout {
-	case partLayoutSystemAB:
-		return []string{"a", "b"}
 	default:
 		return []string{""}
 	}
@@ -275,21 +267,21 @@ func (img *BaseImage) Mount() error {
 	mountpoints := make([]string, 0, len(bindMounts))
 	if img.gadget.PartitionLayout() == "minimal" {
 		mountpoints = bindMounts
-	}
 
-	for _, d := range mountpoints {
-		p := filepath.Join(baseMount, d)
+		for _, d := range mountpoints {
+			p := filepath.Join(baseMount, d)
 
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
+			if err := os.MkdirAll(p, 0755); err != nil {
+				return err
+			}
+
+			printOut("Bind mounting", d, "to", p)
+			if err := bindMount(filepath.Join("/", d), p); err != nil {
+				return err
+			}
+
+			img.bindMounts = append(img.bindMounts, p)
 		}
-
-		printOut("Bind mounting", d, "to", p)
-		if err := bindMount(filepath.Join("/", d), p); err != nil {
-			return err
-		}
-
-		img.bindMounts = append(img.bindMounts, p)
 	}
 
 	return nil
@@ -497,36 +489,6 @@ func (img BaseImage) BaseMount() string {
 }
 
 func (img *BaseImage) GenericBootSetup(bootPath string) error {
-	// origins
-	if img.gadget.PartitionLayout() == "system-AB" {
-		hardwareYamlPath := filepath.Join(img.baseMount, hardwareFileName)
-		kernelPath := filepath.Join(img.baseMount, img.hardware.Kernel)
-		initrdPath := filepath.Join(img.baseMount, img.hardware.Initrd)
-
-		// populate both A/B
-		for _, part := range img.gadget.SystemParts() {
-			path := filepath.Join(bootPath, part)
-
-			printOut("Setting up", path)
-
-			if err := os.MkdirAll(path, 0755); err != nil {
-				return err
-			}
-
-			if err := sysutils.CopyFile(hardwareYamlPath, filepath.Join(path, hardwareFileName)); err != nil {
-				return err
-			}
-
-			if err := sysutils.CopyFile(kernelPath, filepath.Join(path, kernelFileName)); err != nil {
-				return err
-			}
-
-			if err := sysutils.CopyFile(initrdPath, filepath.Join(path, initrdFileName)); err != nil {
-				return err
-			}
-		}
-	}
-
 	gadgetRoot, err := img.gadget.InstallPath()
 	if err != nil {
 		return err

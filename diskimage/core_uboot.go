@@ -69,8 +69,6 @@ type FlashInstructions struct {
 func NewCoreUBootImage(location string, size int64, rootSize int, hw HardwareDescription, gadget GadgetDescription, label string) *CoreUBootImage {
 	var partCount int
 	switch gadget.PartitionLayout() {
-	case "system-AB":
-		partCount = 4
 	case "minimal":
 		partCount = 2
 	}
@@ -104,10 +102,6 @@ func (img *CoreUBootImage) Partition() error {
 	}
 
 	switch img.gadget.PartitionLayout() {
-	case "system-AB":
-		parted.addPart(bootLabel, bootDir, fsFat32, 64)
-		parted.addPart(systemALabel, systemADir, fsExt4, 1024)
-		parted.addPart(systemBLabel, systemBDir, fsExt4, 1024)
 	case "minimal":
 		parted.addPart(bootLabel, bootDir, fsFat32, 128)
 	}

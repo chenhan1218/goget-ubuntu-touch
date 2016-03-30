@@ -43,8 +43,6 @@ type CoreGrubImage struct {
 func NewCoreGrubImage(location string, size int64, rootSize int, hw HardwareDescription, gadget GadgetDescription, updateGrub bool, label string) *CoreGrubImage {
 	var partCount int
 	switch gadget.PartitionLayout() {
-	case "system-AB":
-		partCount = 5
 	case "minimal":
 		partCount = 3
 	}
@@ -88,10 +86,6 @@ func (img *CoreGrubImage) Partition() error {
 
 	parted.addPart(grubLabel, "", fsNone, 4)
 	switch img.gadget.PartitionLayout() {
-	case "system-AB":
-		parted.addPart(bootLabel, bootDir, fsFat32, 64)
-		parted.addPart(systemALabel, systemADir, fsExt4, img.rootSize)
-		parted.addPart(systemBLabel, systemBDir, fsExt4, img.rootSize)
 	case "minimal":
 		parted.addPart(bootLabel, bootDir, fsFat32, 64)
 	}
