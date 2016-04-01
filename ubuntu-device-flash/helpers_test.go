@@ -26,7 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 type HTestSuite struct{}

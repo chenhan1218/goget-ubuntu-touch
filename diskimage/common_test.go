@@ -28,7 +28,7 @@ import (
 
 type CommonTestSuite struct {
 	tmpdir      string
-	oem         OemDescription
+	gadget      GadgetDescription
 	packageInst string
 }
 
@@ -36,27 +36,27 @@ var _ = Suite(&CommonTestSuite{})
 
 func (s *CommonTestSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
-	s.oem = OemDescription{Name: "packagename", Version: "42"}
-	s.packageInst = s.oem.Name
+	s.gadget = GadgetDescription{Name: "packagename", Version: "42"}
+	s.packageInst = s.gadget.Name
 }
 
 func (s *CommonTestSuite) TestOemInstallPath(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "oem", s.packageInst, "current"), 0755)
+	err := os.MkdirAll(filepath.Join(s.tmpdir, "gadget", s.packageInst, "current"), 0755)
 	c.Assert(err, IsNil)
 
-	s.oem.SetRoot(s.tmpdir)
-	installPath, err := s.oem.InstallPath()
+	s.gadget.SetRoot(s.tmpdir)
+	installPath, err := s.gadget.InstallPath()
 
 	c.Assert(err, IsNil)
-	c.Assert(installPath, Equals, filepath.Join(s.tmpdir, "oem/packagename/current"))
+	c.Assert(installPath, Equals, filepath.Join(s.tmpdir, "gadget/packagename/current"))
 }
 
 func (s *CommonTestSuite) TestOemInstallPathNoOem(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "oem", s.packageInst), 0755)
+	err := os.MkdirAll(filepath.Join(s.tmpdir, "gadget", s.packageInst), 0755)
 	c.Assert(err, IsNil)
 
-	s.oem.SetRoot(s.tmpdir)
-	installPath, err := s.oem.InstallPath()
+	s.gadget.SetRoot(s.tmpdir)
+	installPath, err := s.gadget.InstallPath()
 
 	c.Assert(err, NotNil)
 	c.Assert(installPath, Equals, "")
