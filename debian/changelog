@@ -1,3 +1,15 @@
+goget-ubuntu-touch (0.34-0ubuntu1+ppa2) xenial; urgency=medium
+
+  * add missing golang-golang-x-crypto-dev b-d
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 06 Apr 2016 18:06:31 +0200
+
+goget-ubuntu-touch (0.34-0ubuntu1+ppa1) xenial; urgency=medium
+
+  * ppa upload of the all-snaps branch
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 06 Apr 2016 17:58:42 +0200
+
 goget-ubuntu-touch (0.33-0ubuntu1) xenial; urgency=medium
 
   * Exit 1 on parameter errors (LP: #1473333) 

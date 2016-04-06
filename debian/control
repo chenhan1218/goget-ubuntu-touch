@@ -16,6 +16,7 @@ Build-Depends: debhelper (>= 9),
                golang-github-ubuntu-core-snappy-dev,
                golang-github-mvo5-uboot-go-dev,
                golang-yaml.v2-dev,
+               golang-golang-x-crypto-dev,
                ubuntu-snappy-cli,
 Standards-Version: 3.9.5
 Homepage: https://launchpad.net/goget-ubuntu-touch
