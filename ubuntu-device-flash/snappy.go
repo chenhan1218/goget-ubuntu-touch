@@ -279,7 +279,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	}
 
 	s.stagingRootPath = tempDir
-	os.MkdirAll(filepath.Join(tempDir, "/snaps"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "/snap"), 0755)
 
 	dirs.SetRootDir(tempDir)
 	defer dirs.SetRootDir("/")
@@ -540,7 +540,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		}
 
 		// bind mount all relevant dirs
-		for _, d := range []string{"snaps", "var/lib/snaps", "var/lib/snappy", "etc/systemd/system/", "tmp"} {
+		for _, d := range []string{"snap", "var/snap", "var/lib/snapd", "etc/systemd/system/", "tmp"} {
 			dst, err := s.bindMount(d)
 			if err != nil {
 				return err
