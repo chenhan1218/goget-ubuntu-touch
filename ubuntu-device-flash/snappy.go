@@ -293,13 +293,13 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
 		repo := snappy.NewConfiguredUbuntuStoreSnapRepository()
-		snap, err := repo.Snap(gadgetPackage, s.Channel)
+		snap, err := repo.Snap(gadgetPackage, s.Channel, nil)
 		if err != nil {
 			return fmt.Errorf("expected a gadget snaps: %s", err)
 		}
 
 		pb := progress.NewTextProgress()
-		downloadedSnap, err = repo.Download(snap, pb)
+		downloadedSnap, err = repo.Download(snap, pb, nil)
 		if err != nil {
 			return err
 		}
@@ -311,9 +311,11 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	if err := os.MkdirAll(fakeGadgetDir, 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command("unsquashfs", "-f", "-d", fakeGadgetDir, downloadedSnap)
+	cmd := exec.Command("unsquashfs", "-i", "-f", "-d", fakeGadgetDir, downloadedSnap)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
+	} else {
+		println(string(output))
 	}
 
 	if err := s.loadGadget(tempDir); err != nil {
@@ -467,12 +469,12 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 		Channel: s.Channel,
 	})
 	m := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := m.Snap(osPackage, s.Channel)
+	snap, err := m.Snap(osPackage, s.Channel, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
 	pb := progress.NewTextProgress()
-	path, err := m.Download(snap, pb)
+	path, err := m.Download(snap, pb, nil)
 	if err != nil {
 		return "", err
 	}
