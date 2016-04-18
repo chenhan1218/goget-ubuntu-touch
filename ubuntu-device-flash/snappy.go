@@ -159,6 +159,20 @@ func (s *Snapper) systemImage() (*ubuntuimage.Image, error) {
 	return &systemImage, nil
 }
 
+func systemdEnable(serviceName string) error {
+	println("enabling %s", serviceName)
+
+	servicesSystemdTarget := "multi-user.target"
+	snapServicesDir := "/etc/systemd/system"
+
+	enableSymlink := filepath.Join(dirs.GlobalRootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
+
+	serviceFilename := filepath.Join(dirs.GlobalRootDir, snapServicesDir, serviceName)
+
+	return os.Symlink(serviceFilename[len(dirs.GlobalRootDir):], enableSymlink)
+
+}
+
 func (s *Snapper) installFlags() snappy.InstallFlags {
 	flags := snappy.InhibitHooks | snappy.AllowGadget
 
@@ -199,6 +213,20 @@ func (s *Snapper) install(systemPath string) error {
 		name := snap
 		if _, err := snappy.Install(name, s.Channel, flags, pb); err != nil {
 			return fmt.Errorf("failed to install %q from %q: %s", name, s.Channel, err)
+		}
+	}
+
+	// one more hack will certainly not hurt, right?
+	//
+	// manually enable the mount units of the snaps because
+	// `systemctl --root` will only use the alternative root dir to
+	// look for the unit files but the enable symlinks always end
+	// up in "/"
+	mu, _ := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "snap-*"))
+	fmt.Println("+++++++++++++++++++++++", mu)
+	for _, p := range mu {
+		if err := systemdEnable(filepath.Base(p)); err != nil {
+			return fmt.Errorf("cannot systemdEnable %q: %s", p, err)
 		}
 	}
 
@@ -284,9 +312,8 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	dirs.SetRootDir(tempDir)
 	defer dirs.SetRootDir("/")
 	release.Override(release.Release{
-		Flavor:  string(s.flavor),
-		Series:  s.Positional.Release,
-		Channel: s.Channel,
+		Flavor: string(s.flavor),
+		Series: s.Positional.Release,
 	})
 
 	// we need to download and extract the squashfs snap
@@ -464,9 +491,8 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 	}
 
 	release.Override(release.Release{
-		Flavor:  string(s.flavor),
-		Series:  s.Positional.Release,
-		Channel: s.Channel,
+		Flavor: string(s.flavor),
+		Series: s.Positional.Release,
 	})
 	m := snappy.NewConfiguredUbuntuStoreSnapRepository()
 	snap, err := m.Snap(osPackage, s.Channel, nil)
