@@ -95,7 +95,7 @@ type Snapper struct {
 	} `group:"Development"`
 
 	Positional struct {
-		Release string `positional-arg-name:"release" description:"The release to base the image out of (15.04 or rolling)" required:"true"`
+		Release string `positional-arg-name:"release" description:"The release to base the image out of (16 or rolling)" required:"true"`
 	} `positional-args:"yes" required:"yes"`
 
 	img             diskimage.CoreImage
@@ -213,19 +213,6 @@ func (s *Snapper) install(systemPath string) error {
 		name := snap
 		if _, err := snappy.Install(name, s.Channel, flags, pb); err != nil {
 			return fmt.Errorf("failed to install %q from %q: %s", name, s.Channel, err)
-		}
-	}
-
-	// one more hack will certainly not hurt, right?
-	//
-	// manually enable the mount units of the snaps because
-	// `systemctl --root` will only use the alternative root dir to
-	// look for the unit files but the enable symlinks always end
-	// up in "/"
-	mu, _ := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "snap-*"))
-	for _, p := range mu {
-		if err := systemdEnable(filepath.Base(p)); err != nil {
-			return fmt.Errorf("cannot systemdEnable %q: %s", p, err)
 		}
 	}
 
