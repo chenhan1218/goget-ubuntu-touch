@@ -160,7 +160,7 @@ func (s *Snapper) systemImage() (*ubuntuimage.Image, error) {
 }
 
 func systemdEnable(serviceName string) error {
-	println("enabling %s", serviceName)
+	fmt.Printf("Enabling systemd unit %s\n", serviceName)
 
 	servicesSystemdTarget := "multi-user.target"
 	snapServicesDir := "/etc/systemd/system"
@@ -223,7 +223,6 @@ func (s *Snapper) install(systemPath string) error {
 	// look for the unit files but the enable symlinks always end
 	// up in "/"
 	mu, _ := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "snap-*"))
-	fmt.Println("+++++++++++++++++++++++", mu)
 	for _, p := range mu {
 		if err := systemdEnable(filepath.Base(p)); err != nil {
 			return fmt.Errorf("cannot systemdEnable %q: %s", p, err)
