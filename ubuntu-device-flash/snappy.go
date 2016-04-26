@@ -128,6 +128,12 @@ func (s Snapper) sanityCheck() error {
 		return errors.New("building 15.04 core images is no longer supported. Please use the ppa:snappy-dev/tools 15.04 version of this tool")
 	}
 
+	// ensure we error when running on e.g. 14.04 with a sensible
+	// error message instead of super strange error later
+	if !osutil.FileExists("/bin/systemctl") {
+		return errors.New("need '/bin/systemctl to work")
+	}
+
 	return nil
 }
 
