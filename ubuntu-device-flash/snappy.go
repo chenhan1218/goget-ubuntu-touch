@@ -244,7 +244,7 @@ func (s *Snapper) install(systemPath string) error {
 			if err != nil {
 				return fmt.Errorf("can not read %v", fullname)
 			}
-			info, err := snapFile.Info()
+			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 			if err != nil {
 				return fmt.Errorf("can not get info for %v", fullname)
 			}
