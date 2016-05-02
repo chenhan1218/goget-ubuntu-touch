@@ -28,6 +28,8 @@ import (
 	"github.com/ubuntu-core/snappy/provisioning"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
+	// needed so that we register the squashfs format
+	_ "github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/snappy"
 
 	"gopkg.in/yaml.v2"
