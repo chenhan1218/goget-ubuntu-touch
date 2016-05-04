@@ -136,6 +136,22 @@ func (s Snapper) sanityCheck() error {
 		return errors.New("need '/bin/systemctl to work")
 	}
 
+	// only allow whitelisted gadget names for now
+	if os.Getenv("UBUNTU_DEVICE_FLASH_IGNORE_UNSTABLE_GADGET_DEFINITION") == "" {
+		contains := func(haystack []string, needle string) bool {
+			for _, elm := range haystack {
+				if elm == needle {
+					return true
+				}
+			}
+			return false
+		}
+		whitelist := []string{"canonical-i386", "canonical-pc", "canonical-pi2", "canonical-dragon", "beagleblack"}
+		if !contains(whitelist, s.Gadget) {
+			return fmt.Errorf("cannot use %q, must be one of: %q", s.Gadget, whitelist)
+		}
+	}
+
 	return nil
 }
 
