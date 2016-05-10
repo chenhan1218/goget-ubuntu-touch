@@ -326,10 +326,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 
 	dirs.SetRootDir(tempDir)
 	defer dirs.SetRootDir("/")
-	release.Override(release.Release{
-		Flavor: string(s.flavor),
-		Series: s.Positional.Release,
-	})
+	release.Series = s.Positional.Release
 
 	// we need to download and extract the squashfs snap
 	downloadedSnap := gadgetPackage
@@ -504,11 +501,8 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 	if _, err := os.Stat(osPackage); err == nil {
 		return osPackage, nil
 	}
+	release.Series = s.Positional.Release
 
-	release.Override(release.Release{
-		Flavor: string(s.flavor),
-		Series: s.Positional.Release,
-	})
 	m := snappy.NewConfiguredUbuntuStoreSnapRepository()
 	snap, err := m.Snap(osPackage, s.Channel, nil)
 	if err != nil {
