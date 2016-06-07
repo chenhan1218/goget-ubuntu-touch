@@ -33,7 +33,6 @@ import (
 	"gopkg.in/yaml.v2"
 	"launchpad.net/goget-ubuntu-touch/diskimage"
 	"launchpad.net/goget-ubuntu-touch/sysutils"
-	"launchpad.net/goget-ubuntu-touch/ubuntuimage"
 )
 
 type imageFlavor string
@@ -150,59 +149,11 @@ func (s Snapper) sanityCheck() error {
 		}
 	}
 
+	if s.OS == "" || s.Kernel == "" || s.Gadget == "" {
+		return fmt.Errorf("need exactly one kernel,os,gadget snap")
+	}
+
 	return nil
-}
-
-func (s *Snapper) systemImage() (*ubuntuimage.Image, error) {
-	channels, err := ubuntuimage.NewChannels(globalArgs.Server)
-	if err != nil {
-		return nil, err
-	}
-
-	channel := systemImageChannel(s.flavor.Channel(), s.Positional.Release, s.Channel)
-	// TODO: remove once azure channel is gone
-	if s.device == "" {
-		s.device = systemImageDeviceChannel(s.gadget.Architecture())
-	}
-
-	deviceChannel, err := channels.GetDeviceChannel(globalArgs.Server, channel, s.device)
-	if err != nil {
-		return nil, err
-	}
-
-	systemImage, err := getImage(deviceChannel)
-	if err != nil {
-		return nil, err
-	}
-
-	// avoid passing more args to setup()
-	globalArgs.Revision = systemImage.Version
-
-	return &systemImage, nil
-}
-
-func systemdEnable(serviceName string) error {
-	fmt.Printf("Enabling systemd unit %s\n", serviceName)
-
-	servicesSystemdTarget := "multi-user.target"
-	snapServicesDir := "/etc/systemd/system"
-
-	enableSymlink := filepath.Join(dirs.GlobalRootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
-
-	serviceFilename := filepath.Join(dirs.GlobalRootDir, snapServicesDir, serviceName)
-
-	return os.Symlink(serviceFilename[len(dirs.GlobalRootDir):], enableSymlink)
-
-}
-
-func (s *Snapper) installFlags() snappy.LegacyInstallFlags {
-	flags := snappy.LegacyInhibitHooks | snappy.LegacyAllowGadget
-
-	if s.Development.DeveloperMode {
-		flags |= snappy.LegacyAllowUnauthenticated
-	}
-
-	return flags
 }
 
 func (s *Snapper) install(systemPath string) error {
@@ -213,85 +164,71 @@ func (s *Snapper) install(systemPath string) error {
 	// - use info := store.Snap(name)
 	// - and store.Download(info)
 	// - store metadata next to the snap so that firstboot can pick it up
-	//
-	// copy snaps in place, do not bother using snapd to install
+
+	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
-	if s.OS != "" && s.Kernel != "" && s.Gadget != "" {
-		for _, src := range []string{s.OS, s.Kernel, s.Gadget} {
-			if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
-				return err
-			}
-			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(src))
-			cmd := exec.Command("cp", "-va", src, dst)
-			if o, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("copy failed: %s %s", err, o)
-			}
+	for _, src := range []string{s.OS, s.Kernel, s.Gadget} {
+		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
+			return err
 		}
+		dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(src))
+		cmd := exec.Command("cp", "-va", src, dst)
+		if o, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("copy failed: %s %s", err, o)
+		}
+	}
 
-		// set the bootvars for kernel/os snaps, the latest snappy is
-		// not activating the snaps on install anymore (with inhibit)
-		// so we need to work around that here (only on first boot)
-		//
-		// there is also no mounted os/kernel snap in the systemPath
-		// all we have here is the blobs
+	// set the bootvars for kernel/os snaps, the latest snappy is
+	// not activating the snaps on install anymore (with inhibit)
+	// so we need to work around that here (only on first boot)
+	//
+	// there is also no mounted os/kernel snap in the systemPath
+	// all we have here is the blobs
 
-		bootloader, err := partition.FindBootloader()
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		return fmt.Errorf("can not set kernel/os bootvars: %s", err)
+	}
+
+	snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+	if len(snaps) == 0 {
+		return fmt.Errorf("internal error: cannot find os/kernel snap")
+	}
+	for _, fullname := range snaps {
+		bootvar := ""
+		bootvar2 := ""
+
+		// detect type
+		snapFile, err := snap.Open(fullname)
 		if err != nil {
-			return fmt.Errorf("can not set kernel/os bootvars: %s", err)
+			return fmt.Errorf("can not read %v", fullname)
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		if err != nil {
+			return fmt.Errorf("can not get info for %v", fullname)
+		}
+		switch info.Type {
+		case snap.TypeOS:
+			bootvar = "snappy_os"
+			bootvar2 = "snappy_good_os"
+		case snap.TypeKernel:
+			bootvar = "snappy_kernel"
+			bootvar2 = "snappy_good_kernel"
 		}
 
-		snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
-		if len(snaps) == 0 {
-			return fmt.Errorf("internal error: cannot find os/kernel snap")
-		}
-		for _, fullname := range snaps {
-			bootvar := ""
-			bootvar2 := ""
-
-			// detect type
-			snapFile, err := snap.Open(fullname)
-			if err != nil {
-				return fmt.Errorf("can not read %v", fullname)
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-			if err != nil {
-				return fmt.Errorf("can not get info for %v", fullname)
-			}
-			switch info.Type {
-			case snap.TypeOS:
-				bootvar = "snappy_os"
-				bootvar2 = "snappy_good_os"
-			case snap.TypeKernel:
-				bootvar = "snappy_kernel"
-				bootvar2 = "snappy_good_kernel"
-			}
-
-			name := filepath.Base(fullname)
-			for _, b := range []string{bootvar, bootvar2} {
-				if b != "" {
-					if err := bootloader.SetBootVar(b, name); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		// HORRIBLE, snappy.Install() will check if running
-		// on a grub system based on the gadget snap and if
-		// it is grub it will not extract the kernel/os
-		//
-		// HOWEVER this won't work in u-d-f because there
-		// is no current symlink so kernel.go always unpacks
-		// the kernel. undo this here
-		if s.gadget.Gadget.Hardware.Bootloader == "grub" {
-			dirs, _ := filepath.Glob(filepath.Join(s.img.Boot(), "/EFI/ubuntu/grub/*.snap"))
-			for _, d := range dirs {
-				fmt.Printf("Removing unneeded: %s\n", d)
-				if err := os.RemoveAll(d); err != nil {
+		name := filepath.Base(fullname)
+		for _, b := range []string{bootvar, bootvar2} {
+			if b != "" {
+				if err := bootloader.SetBootVar(b, name); err != nil {
 					return err
 				}
 			}
 		}
+	}
+
+	if s.gadget.Gadget.Hardware.Bootloader == "u-boot" {
+		// FIXME: do the equaivalent of extractKernelAssets here
+		fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
 	}
 
 	return nil
@@ -436,38 +373,6 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 
 	// the file isn't supposed to be modified, hence r/o.
 	return ioutil.WriteFile(installYamlFilePath, data, 0444)
-}
-
-func extractHWDescription(path string) (hw diskimage.HardwareDescription, err error) {
-	// hack to circumvent https://code.google.com/p/go/issues/detail?id=1435
-	if syscall.Getuid() == 0 {
-		runtime.GOMAXPROCS(1)
-		runtime.LockOSThread()
-
-		if err := sysutils.DropPrivs(); err != nil {
-			return hw, err
-		}
-	}
-
-	printOut("Searching for hardware.yaml in device part")
-	tmpdir, err := ioutil.TempDir("", "hardware")
-	if err != nil {
-		return hw, errors.New("cannot create tempdir to extract hardware.yaml from device part")
-	}
-	defer os.RemoveAll(tmpdir)
-
-	if out, err := exec.Command("tar", "xf", path, "-C", tmpdir, "hardware.yaml").CombinedOutput(); err != nil {
-		return hw, fmt.Errorf("failed to extract a hardware.yaml from the device part: %s", out)
-	}
-
-	data, err := ioutil.ReadFile(filepath.Join(tmpdir, "hardware.yaml"))
-	if err != nil {
-		return hw, err
-	}
-
-	err = yaml.Unmarshal([]byte(data), &hw)
-
-	return hw, err
 }
 
 func (s *Snapper) bindMount(d string) (string, error) {
@@ -670,77 +575,6 @@ func (s Snapper) printSummary() {
 	fmt.Println(" Architecture:", s.gadget.Architecture())
 	fmt.Println(" Channel:", s.Channel)
 	fmt.Println(" Version:", globalArgs.Revision)
-}
-
-func (s *Snapper) getSystemImage() ([]Files, error) {
-	var devicePart string
-	if s.Development.DevicePart != "" {
-		p, err := expandFile(s.Development.DevicePart)
-		if err != nil {
-			return nil, err
-		}
-
-		fmt.Println("Using a custom OS or Kernel part will prevent updates for these components")
-
-		devicePart = p
-	}
-
-	fmt.Println("Fetching information from server...")
-	systemImage, err := s.systemImage()
-	if err != nil {
-		return nil, err
-	}
-
-	filesChan := make(chan Files, len(systemImage.Files))
-	sigFiles := ubuntuimage.GetGPGFiles()
-
-	fmt.Println("Downloading and setting up...")
-
-	go func() {
-		sigFilesChan := make(chan Files, len(sigFiles))
-		defer close(sigFilesChan)
-
-		for _, f := range sigFiles {
-			bitDownloader(f, sigFilesChan, globalArgs.Server, cacheDir)
-		}
-	}()
-
-	filePaths := make([]Files, 0, len(systemImage.Files))
-	hwChan := make(chan diskimage.HardwareDescription)
-
-	go func() {
-		for i := 0; i < len(systemImage.Files); i++ {
-			f := <-filesChan
-
-			if isDevicePart(f.FilePath) {
-				devicePart = f.FilePath
-
-				if hardware, err := extractHWDescription(f.FilePath); err != nil {
-					fmt.Println("Failed to read harware.yaml from device part, provisioning may fail:", err)
-				} else {
-					hwChan <- hardware
-				}
-			}
-
-			printOut("Download finished for", f.FilePath)
-			filePaths = append(filePaths, f)
-		}
-		close(hwChan)
-		close(filesChan)
-	}()
-
-	for _, f := range systemImage.Files {
-		if devicePart != "" && isDevicePart(f.Path) {
-			printOut("Using a custom device tarball")
-			filesChan <- Files{FilePath: devicePart}
-		} else {
-			go bitDownloader(f, filesChan, globalArgs.Server, cacheDir)
-		}
-	}
-
-	s.hardware = <-hwChan
-
-	return filePaths, nil
 }
 
 func (s *Snapper) create() (err error) {
