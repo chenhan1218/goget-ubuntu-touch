@@ -9,6 +9,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -177,7 +178,11 @@ func (s *Snapper) install(systemPath string) error {
 
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
-	for _, src := range []string{osSnap, kernelSnap, gadgetSnap} {
+	for _, src := range []string{
+		osSnap, osSnap + ".meta",
+		kernelSnap, kernelSnap + ".meta",
+		gadgetSnap, gadgetSnap + ".meta",
+	} {
 		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 			return err
 		}
@@ -405,6 +410,11 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 	// if its pointing to a local file, just return that
 	if _, err := os.Stat(snapName); err == nil {
+		// write (empty) metadata
+		if err := ioutil.WriteFile(snapName+".meta", []byte(`{}`), 0644); err != nil {
+			return "", err
+		}
+
 		return snapName, nil
 	}
 	release.Series = s.Positional.Release
@@ -415,11 +425,24 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
 	pb := progress.NewTextProgress()
-	path, err := m.Download(snap, pb, nil)
+	tmpName, err := m.Download(snap, pb, nil)
 	if err != nil {
 		return "", err
 	}
-	// FIXME: store metadata
+	// rename to the snapid
+	path := fmt.Sprintf("%s_%s.snap", filepath.Join(filepath.Dir(tmpName), snap.SnapID), snap.Revision)
+	if err := os.Rename(tmpName, path); err != nil {
+		return "", err
+	}
+
+	// write out metadata for first boot
+	out, err := json.Marshal(snap)
+	if err != nil {
+		return "", err
+	}
+	if err := ioutil.WriteFile(path+".meta", []byte(out), 0644); err != nil {
+		return "", err
+	}
 
 	return path, nil
 }
