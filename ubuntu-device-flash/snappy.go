@@ -447,7 +447,11 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	return path, nil
 }
 
-func (s *Snapper) setup(systemImageFiles []Files) error {
+func (s *Snapper) setup() error {
+	if s.gadget.PartitionLayout() != "minimal" {
+		return fmt.Errorf("only supporting 'minimal' partition layout")
+	}
+
 	printOut("Mounting...")
 	if err := s.img.Mount(); err != nil {
 		return err
@@ -460,107 +464,98 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 	}()
 
 	printOut("Provisioning...")
-	for i := range systemImageFiles {
-		if out, err := exec.Command("fakeroot", "tar", "--numeric-owner", "-axvf", systemImageFiles[i].FilePath, "-C", s.img.BaseMount()).CombinedOutput(); err != nil {
-			printOut(string(out))
-			return fmt.Errorf("issues while extracting: %s", out)
-		}
-	}
-
 	systemPath := s.img.System()
 
 	// setup a fake system
-	if s.gadget.PartitionLayout() == "minimal" {
-		if err := os.MkdirAll(systemPath, 0755); err != nil {
-			return err
-		}
+	if err := os.MkdirAll(systemPath, 0755); err != nil {
+		return err
+	}
 
-		// this is a bit terrible, we need to download the OS
-		// mount it, "sync dirs" (see below) and then we
-		// will need to download it again to install it properly
-		osSnap, err := s.downloadSnap(s.OS)
+	// this is a bit terrible, we need to download the OS
+	// mount it, "sync dirs" (see below) and then we
+	// will need to download it again to install it properly
+	osSnap, err := s.downloadSnap(s.OS)
+	if err != nil {
+		return err
+	}
+
+	// mount os snap
+	cmd := exec.Command("mount", osSnap, systemPath)
+	if o, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
+	}
+	defer exec.Command("umount", systemPath).Run()
+
+	// we need to do what "writable-paths" normally does on
+	// boot for etc/systemd/system, i.e. copy all the stuff
+	// from the os into the writable partition. normally
+	// this is the job of the initrd, however it won't touch
+	// the dir if there are files in there already. and a
+	// kernel/os install will create auto-mount units in there
+	src := filepath.Join(systemPath, "etc", "systemd", "system")
+	dst := filepath.Join(s.img.Writable(), "system-data", "etc", "systemd")
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+	cmd = exec.Command("cp", "-a", src, dst)
+	if o, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("copy failed: %s %s", err, o)
+	}
+
+	// bind mount all relevant dirs
+	for _, d := range []string{"snap", "var/snap", "var/lib/snapd", "etc/systemd/system/", "tmp"} {
+		dst, err := s.bindMount(d)
 		if err != nil {
 			return err
 		}
+		defer exec.Command("umount", dst).Run()
+	}
 
-		// mount os snap
-		cmd := exec.Command("mount", osSnap, systemPath)
+	// bind mount /boot/efi
+	dst = filepath.Join(systemPath, "/boot/efi")
+	cmd = exec.Command("mount", "--bind", s.img.Boot(), dst)
+	if o, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
+	}
+	defer exec.Command("umount", dst).Run()
+	switch s.gadget.Gadget.Hardware.Bootloader {
+	case "grub":
+		// grub needs this
+		grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
+		os.MkdirAll(grubUbuntu, 0755)
+
+		// and /boot/grub
+		src = grubUbuntu
+		dst = filepath.Join(systemPath, "/boot/grub")
+		cmd = exec.Command("mount", "--bind", src, dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
-		}
-		defer exec.Command("umount", systemPath).Run()
-
-		// we need to do what "writable-paths" normally does on
-		// boot for etc/systemd/system, i.e. copy all the stuff
-		// from the os into the writable partition. normally
-		// this is the job of the initrd, however it won't touch
-		// the dir if there are files in there already. and a
-		// kernel/os install will create auto-mount units in there
-		src := filepath.Join(systemPath, "etc", "systemd", "system")
-		dst := filepath.Join(s.img.Writable(), "system-data", "etc", "systemd")
-		if err := os.MkdirAll(dst, 0755); err != nil {
-			return err
-		}
-		cmd = exec.Command("cp", "-a", src, dst)
-		if o, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("copy failed: %s %s", err, o)
-		}
-
-		// bind mount all relevant dirs
-		for _, d := range []string{"snap", "var/snap", "var/lib/snapd", "etc/systemd/system/", "tmp"} {
-			dst, err := s.bindMount(d)
-			if err != nil {
-				return err
-			}
-			defer exec.Command("umount", dst).Run()
-		}
-
-		// bind mount /boot/efi
-		dst = filepath.Join(systemPath, "/boot/efi")
-		cmd = exec.Command("mount", "--bind", s.img.Boot(), dst)
-		if o, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
+			return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", dst).Run()
-		switch s.gadget.Gadget.Hardware.Bootloader {
-		case "grub":
-			// grub needs this
-			grubUbuntu := filepath.Join(s.img.Boot(), "EFI/ubuntu/grub")
-			os.MkdirAll(grubUbuntu, 0755)
 
-			// and /boot/grub
-			src = grubUbuntu
-			dst = filepath.Join(systemPath, "/boot/grub")
-			cmd = exec.Command("mount", "--bind", src, dst)
-			if o, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
-			}
-			defer exec.Command("umount", dst).Run()
-
-			// TERRIBLE but we need a /boot/grub/grub.cfg so that
-			//          the kernel and os snap can be installed
-			glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "gadget", "*", "*", "grub.cfg"))
-			if err != nil {
-				return fmt.Errorf("grub.cfg glob failed: %s", err)
-			}
-			if len(glob) != 1 {
-				return fmt.Errorf("can not find a valid grub.cfg, found %v instead", len(glob))
-			}
-			gadgetGrubCfg := glob[0]
-			cmd = exec.Command("cp", gadgetGrubCfg, grubUbuntu)
-			o, err := cmd.CombinedOutput()
-			if err != nil {
-				return fmt.Errorf("failed to copy %s %s", err, o)
-			}
-		case "u-boot":
-			src = s.img.Boot()
-			dst = filepath.Join(systemPath, "/boot/uboot")
-			cmd = exec.Command("mount", "--bind", src, dst)
-			if o, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
-			}
-			defer exec.Command("umount", dst).Run()
+		// TERRIBLE but we need a /boot/grub/grub.cfg so that
+		//          the kernel and os snap can be installed
+		glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "gadget", "*", "*", "grub.cfg"))
+		if err != nil {
+			return fmt.Errorf("grub.cfg glob failed: %s", err)
 		}
+		if len(glob) != 1 {
+			return fmt.Errorf("can not find a valid grub.cfg, found %v instead", len(glob))
+		}
+		gadgetGrubCfg := glob[0]
+		cmd = exec.Command("cp", gadgetGrubCfg, grubUbuntu)
+		o, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to copy %s %s", err, o)
+		}
+	case "u-boot":
+		src = s.img.Boot()
+		dst = filepath.Join(systemPath, "/boot/uboot")
+		cmd = exec.Command("mount", "--bind", src, dst)
+		if o, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
+		}
+		defer exec.Command("umount", dst).Run()
 	}
 
 	if err := s.img.SetupBoot(); err != nil {
@@ -581,7 +576,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 }
 
 // deploy orchestrates the priviledged part of the setup
-func (s *Snapper) deploy(systemImageFiles []Files) error {
+func (s *Snapper) deploy() error {
 	// hack to circumvent https://code.google.com/p/go/issues/detail?id=1435
 	runtime.GOMAXPROCS(1)
 	runtime.LockOSThread()
@@ -595,7 +590,7 @@ func (s *Snapper) deploy(systemImageFiles []Files) error {
 		return err
 	}
 
-	if err := s.setup(systemImageFiles); err != nil {
+	if err := s.setup(); err != nil {
 		return err
 	}
 
@@ -634,21 +629,9 @@ func (s *Snapper) create() (err error) {
 		return err
 	}
 
-	systemImageFiles := []Files{}
-	switch s.gadget.Gadget.Hardware.PartitionLayout {
-	case "minimal":
-		if s.OS == "" && s.Kernel == "" {
-			return errors.New("kernel and os have to be specified to support partition-layout: minimal")
-		}
-	}
-
 	switch s.gadget.Gadget.Hardware.Bootloader {
 	case "grub":
-		legacy := isLegacy(s.Positional.Release, s.Channel, globalArgs.Revision)
-		if legacy {
-			printOut("Using legacy setup")
-		}
-
+		legacy := false
 		s.img = diskimage.NewCoreGrubImage(s.Output, s.size, s.flavor.rootSize(), s.hardware, s.gadget, legacy, "gpt")
 	case "u-boot":
 		label := "msdos"
@@ -681,7 +664,7 @@ func (s *Snapper) create() (err error) {
 	}()
 
 	// Execute the following code with escalated privs and drop them when done
-	if err := s.deploy(systemImageFiles); err != nil {
+	if err := s.deploy(); err != nil {
 		return err
 	}
 
