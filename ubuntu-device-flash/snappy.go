@@ -161,13 +161,23 @@ func (s *Snapper) install(systemPath string) error {
 	defer dirs.SetRootDir("/")
 
 	// FIXME: support downloading of the snaps
-	// - use info := store.Snap(name)
-	// - and store.Download(info)
 	// - store metadata next to the snap so that firstboot can pick it up
+	osSnap, err := s.downloadSnap(s.OS)
+	if err != nil {
+		return err
+	}
+	kernelSnap, err := s.downloadSnap(s.Kernel)
+	if err != nil {
+		return err
+	}
+	gadgetSnap, err := s.downloadSnap(s.Gadget)
+	if err != nil {
+		return err
+	}
 
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
-	for _, src := range []string{s.OS, s.Kernel, s.Gadget} {
+	for _, src := range []string{osSnap, kernelSnap, gadgetSnap} {
 		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 			return err
 		}
@@ -389,18 +399,18 @@ func (s *Snapper) bindMount(d string) (string, error) {
 	return dst, nil
 }
 
-func (s *Snapper) downloadOS(osPackage string) (string, error) {
-	if osPackage == "" {
+func (s *Snapper) downloadSnap(snapName string) (string, error) {
+	if snapName == "" {
 		return "", nil
 	}
 	// if its pointing to a local file, just return that
-	if _, err := os.Stat(osPackage); err == nil {
-		return osPackage, nil
+	if _, err := os.Stat(snapName); err == nil {
+		return snapName, nil
 	}
 	release.Series = s.Positional.Release
 
 	m := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := m.Snap(osPackage, s.Channel, nil)
+	snap, err := m.Snap(snapName, s.Channel, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
@@ -409,6 +419,7 @@ func (s *Snapper) downloadOS(osPackage string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// FIXME: store metadata
 
 	return path, nil
 }
@@ -444,7 +455,7 @@ func (s *Snapper) setup(systemImageFiles []Files) error {
 		// this is a bit terrible, we need to download the OS
 		// mount it, "sync dirs" (see below) and then we
 		// will need to download it again to install it properly
-		osSnap, err := s.downloadOS(s.OS)
+		osSnap, err := s.downloadSnap(s.OS)
 		if err != nil {
 			return err
 		}
