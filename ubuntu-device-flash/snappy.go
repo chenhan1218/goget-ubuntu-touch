@@ -209,48 +209,41 @@ func (s *Snapper) install(systemPath string) error {
 	dirs.SetRootDir(systemPath)
 	defer dirs.SetRootDir("/")
 
-	flags := s.installFlags()
-	gadgetSoftware := s.gadget.Gadget.Software
-	packageCount := len(s.Development.Install) + len(gadgetSoftware.BuiltIn) + len(gadgetSoftware.Preinstalled) + 3
-	if s.Gadget != "" {
-		packageCount++
-	}
-
-	packageQueue := make([]string, 0, packageCount)
-	if s.Gadget != "" {
-		packageQueue = append(packageQueue, s.Gadget)
-	}
-	if s.OS != "" && s.Kernel != "" {
-		packageQueue = append(packageQueue, s.Kernel)
-		packageQueue = append(packageQueue, s.OS)
-	}
-	packageQueue = append(packageQueue, gadgetSoftware.BuiltIn...)
-	packageQueue = append(packageQueue, gadgetSoftware.Preinstalled...)
-	packageQueue = append(packageQueue, s.Development.Install...)
-
-	for _, snap := range packageQueue {
-		fmt.Println("Installing", snap)
-
-		pb := progress.NewTextProgress()
-		name := snap
-		if _, err := snappy.Install(name, s.Channel, flags, pb); err != nil {
-			return fmt.Errorf("failed to install %q from %q: %s", name, s.Channel, err)
-		}
-	}
-
-	// set the bootvars for kernel/os snaps, the latest snappy is
-	// not activating the snaps on install anymore (with inhibit)
-	// so we need to work around that here (only on first boot)
+	// FIXME: support downloading of the snaps
+	// - use info := store.Snap(name)
+	// - and store.Download(info)
+	// - store metadata next to the snap so that firstboot can pick it up
 	//
-	// there is also no mounted os/kernel snap in the systemPath
-	// all we have here is the blobs
-	if s.OS != "" && s.Kernel != "" {
+	// copy snaps in place, do not bother using snapd to install
+	// for now, u-d-f should be super minimal
+	if s.OS != "" && s.Kernel != "" && s.Gadget != "" {
+		for _, src := range []string{s.OS, s.Kernel, s.Gadget} {
+			if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
+				return err
+			}
+			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(src))
+			cmd := exec.Command("cp", "-va", src, dst)
+			if o, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("copy failed: %s %s", err, o)
+			}
+		}
+
+		// set the bootvars for kernel/os snaps, the latest snappy is
+		// not activating the snaps on install anymore (with inhibit)
+		// so we need to work around that here (only on first boot)
+		//
+		// there is also no mounted os/kernel snap in the systemPath
+		// all we have here is the blobs
+
 		bootloader, err := partition.FindBootloader()
 		if err != nil {
 			return fmt.Errorf("can not set kernel/os bootvars: %s", err)
 		}
 
 		snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+		if len(snaps) == 0 {
+			return fmt.Errorf("internal error: cannot find os/kernel snap")
+		}
 		for _, fullname := range snaps {
 			bootvar := ""
 			bootvar2 := ""
