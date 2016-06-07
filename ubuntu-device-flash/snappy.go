@@ -20,17 +20,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/provisioning"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	// needed so that we register the squashfs format
-	_ "github.com/ubuntu-core/snappy/snap/squashfs"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/provisioning"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
 
 	"gopkg.in/yaml.v2"
 	"launchpad.net/goget-ubuntu-touch/diskimage"
@@ -197,11 +195,11 @@ func systemdEnable(serviceName string) error {
 
 }
 
-func (s *Snapper) installFlags() snappy.InstallFlags {
-	flags := snappy.InhibitHooks | snappy.AllowGadget
+func (s *Snapper) installFlags() snappy.LegacyInstallFlags {
+	flags := snappy.LegacyInhibitHooks | snappy.LegacyAllowGadget
 
 	if s.Development.DeveloperMode {
-		flags |= snappy.AllowUnauthenticated
+		flags |= snappy.LegacyAllowUnauthenticated
 	}
 
 	return flags

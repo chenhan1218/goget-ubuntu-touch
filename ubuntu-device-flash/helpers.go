@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // RSyncWithDelete syncs srcDir to destDir
