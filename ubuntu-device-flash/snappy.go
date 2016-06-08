@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/provisioning"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
 
 	"gopkg.in/yaml.v2"
 	"launchpad.net/goget-ubuntu-touch/diskimage"
@@ -157,6 +157,40 @@ func (s Snapper) sanityCheck() error {
 	return nil
 }
 
+func snapTargetPathFromSnapFile(src string) (string, error) {
+	snapFile, err := snap.Open(src)
+	if err != nil {
+		return "", err
+	}
+	var si snap.SideInfo
+	// XXX: copied from snapmgr.go
+	metafn := src + ".sideinfo"
+	if j, err := ioutil.ReadFile(metafn); err == nil {
+		if err := json.Unmarshal(j, &si); err != nil {
+			return "", fmt.Errorf("cannot read metadata: %s %s\n", metafn, err)
+		}
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapFile, &si)
+	if err != nil {
+		return "", err
+	}
+
+	// local snap
+	if info.Revision.Unset() {
+		info.Revision = snap.R(-1)
+	}
+
+	return info.MountFile(), nil
+}
+
+func copyFile(src, dst string) error {
+	cmd := exec.Command("cp", "-va", src, dst)
+	if o, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("copy failed: %s %s", err, o)
+	}
+	return nil
+}
+
 func (s *Snapper) install(systemPath string) error {
 	dirs.SetRootDir(systemPath)
 	defer dirs.SetRootDir("/")
@@ -179,18 +213,30 @@ func (s *Snapper) install(systemPath string) error {
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
 	for _, src := range []string{
-		osSnap, osSnap + ".sideinfo",
-		kernelSnap, kernelSnap + ".sideinfo",
-		gadgetSnap, gadgetSnap + ".sideinfo",
+		osSnap,
+		kernelSnap,
+		gadgetSnap,
 	} {
 		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 			return err
 		}
-		dst := filepath.Join(dirs.SnapBlobDir, "first-boot-"+filepath.Base(src))
-		cmd := exec.Command("cp", "-va", src, dst)
-		if o, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("copy failed: %s %s", err, o)
+
+		// this ensures we get exactly the same name as snapd does
+		// expect for the final snap
+		dst, err := snapTargetPathFromSnapFile(src)
+		if err != nil {
+			return err
 		}
+
+		// copy snap
+		if err := copyFile(src, dst); err != nil {
+			return err
+		}
+		// and the matching sideinfo
+		if err := copyFile(src+".sideinfo", dst+".sideinfo"); err != nil {
+			return err
+		}
+
 	}
 
 	// set the bootvars for kernel/os snaps, the latest snappy is
@@ -274,7 +320,7 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	// we need to download and extract the squashfs snap
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
-		repo := snappy.NewConfiguredUbuntuStoreSnapRepository()
+		repo := store.NewUbuntuStoreSnapRepository(nil, s.StoreID)
 		snap, err := repo.Snap(gadgetPackage, s.Channel, nil)
 		if err != nil {
 			return fmt.Errorf("expected a gadget snaps: %s", err)
@@ -419,7 +465,7 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 	release.Series = s.Positional.Release
 
-	m := snappy.NewConfiguredUbuntuStoreSnapRepository()
+	m := store.NewUbuntuStoreSnapRepository(nil, s.StoreID)
 	snap, err := m.Snap(snapName, s.Channel, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
