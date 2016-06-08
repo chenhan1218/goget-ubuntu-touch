@@ -186,7 +186,7 @@ func (s *Snapper) install(systemPath string) error {
 		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 			return err
 		}
-		dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(src))
+		dst := filepath.Join(dirs.SnapBlobDir, "first-boot-"+filepath.Base(src))
 		cmd := exec.Command("cp", "-va", src, dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("copy failed: %s %s", err, o)
@@ -430,7 +430,8 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 		return "", err
 	}
 	// rename to the snapid
-	path := fmt.Sprintf("%s_%s.snap", filepath.Join(filepath.Dir(tmpName), snap.SnapID), snap.Revision)
+	baseName := fmt.Sprintf("%s_%s.snap", snap.SnapID, snap.Revision)
+	path := filepath.Join(filepath.Dir(tmpName), baseName)
 	if err := os.Rename(tmpName, path); err != nil {
 		return "", err
 	}
