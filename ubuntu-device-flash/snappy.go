@@ -179,9 +179,9 @@ func (s *Snapper) install(systemPath string) error {
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
 	for _, src := range []string{
-		osSnap, osSnap + ".meta",
-		kernelSnap, kernelSnap + ".meta",
-		gadgetSnap, gadgetSnap + ".meta",
+		osSnap, osSnap + ".sideinfo",
+		kernelSnap, kernelSnap + ".sideinfo",
+		gadgetSnap, gadgetSnap + ".sideinfo",
 	} {
 		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 			return err
@@ -411,7 +411,7 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	// if its pointing to a local file, just return that
 	if _, err := os.Stat(snapName); err == nil {
 		// write (empty) metadata
-		if err := ioutil.WriteFile(snapName+".meta", []byte(`{}`), 0644); err != nil {
+		if err := ioutil.WriteFile(snapName+".sideinfo", []byte(`{}`), 0644); err != nil {
 			return "", err
 		}
 
@@ -441,7 +441,7 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path+".meta", []byte(out), 0644); err != nil {
+	if err := ioutil.WriteFile(path+".sideinfo", []byte(out), 0644); err != nil {
 		return "", err
 	}
 
