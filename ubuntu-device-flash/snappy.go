@@ -232,9 +232,11 @@ func (s *Snapper) install(systemPath string) error {
 		if err := copyFile(src, dst); err != nil {
 			return err
 		}
-		// and the matching sideinfo
-		if err := copyFile(src+".sideinfo", dst+".sideinfo"); err != nil {
-			return err
+		// and the matching sideinfo (if there is one)
+		if osutil.FileExists(src + ".sideinfo") {
+			if err := copyFile(src+".sideinfo", dst+".sideinfo"); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -456,11 +458,6 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 	// if its pointing to a local file, just return that
 	if _, err := os.Stat(snapName); err == nil {
-		// write (empty) metadata
-		if err := ioutil.WriteFile(snapName+".sideinfo", []byte(`{}`), 0644); err != nil {
-			return "", err
-		}
-
 		return snapName, nil
 	}
 	release.Series = s.Positional.Release
