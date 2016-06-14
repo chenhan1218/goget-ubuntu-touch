@@ -192,10 +192,9 @@ func copyFile(src, dst string) error {
 }
 
 func (s *Snapper) install(systemPath string) error {
-	dirs.SetRootDir(systemPath)
-	defer dirs.SetRootDir("/")
-
 	snaps := []string{s.OS, s.Kernel, s.Gadget}
+	snaps = append(snaps, s.Development.Install...)
+
 	outYaml := fmt.Sprintf(`
 bootstrap:
  rootdir: %s
