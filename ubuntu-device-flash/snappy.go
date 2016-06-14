@@ -449,24 +449,11 @@ func (s *Snapper) setup() error {
 	}
 	defer exec.Command("umount", systemPath).Run()
 
-	// we need to do what "writable-paths" normally does on
-	// boot for etc/systemd/system, i.e. copy all the stuff
-	// from the os into the writable partition. normally
-	// this is the job of the initrd, however it won't touch
-	// the dir if there are files in there already. and a
-	// kernel/os install will create auto-mount units in there
-	src := filepath.Join(systemPath, "etc", "systemd", "system")
-	dst := filepath.Join(s.img.Writable(), "system-data", "etc", "systemd")
-	if err := os.MkdirAll(dst, 0755); err != nil {
-		return err
-	}
-	cmd = exec.Command("cp", "-a", src, dst)
-	if o, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("copy failed: %s %s", err, o)
-	}
-
-	// bind mount all relevant dirs
-	for _, d := range []string{"snap", "var/snap", "var/lib/snapd", "etc/systemd/system/", "tmp"} {
+	// bind mount all relevant dirs:
+	//  - /snap so that we can temporarly mount the kernel
+	//  - /var/lib/snapd to put the downloaded snaps in there
+	//  - /tmp so that we can create /tmp/root_dev for grub
+	for _, d := range []string{"snap", "var/lib/snapd", "tmp"} {
 		dst, err := s.bindMount(d)
 		if err != nil {
 			return err
@@ -475,7 +462,7 @@ func (s *Snapper) setup() error {
 	}
 
 	// bind mount /boot/efi
-	dst = filepath.Join(systemPath, "/boot/efi")
+	dst := filepath.Join(systemPath, "/boot/efi")
 	cmd = exec.Command("mount", "--bind", s.img.Boot(), dst)
 	if o, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("boot bind mount failed with: %s %v ", err, string(o))
@@ -488,7 +475,7 @@ func (s *Snapper) setup() error {
 		os.MkdirAll(grubUbuntu, 0755)
 
 		// and /boot/grub
-		src = grubUbuntu
+		src := grubUbuntu
 		dst = filepath.Join(systemPath, "/boot/grub")
 		cmd = exec.Command("mount", "--bind", src, dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
@@ -512,7 +499,7 @@ func (s *Snapper) setup() error {
 			return fmt.Errorf("failed to copy %s %s", err, o)
 		}
 	case "u-boot":
-		src = s.img.Boot()
+		src := s.img.Boot()
 		dst = filepath.Join(systemPath, "/boot/uboot")
 		cmd = exec.Command("mount", "--bind", src, dst)
 		if o, err := cmd.CombinedOutput(); err != nil {
