@@ -200,8 +200,10 @@ func (s *Snapper) install(systemPath string) error {
 bootstrap:
  rootdir: %s
  architecture: %s
+ channel: %s
+ store-id: %s
  snaps: [%s]
-`, systemPath, s.gadget.Architecture(), strings.Join(snaps, ","))
+`, systemPath, s.gadget.Architecture(), s.Channel, s.StoreID, strings.Join(snaps, ","))
 	if err := ioutil.WriteFile("bootstrap.yaml", []byte(outYaml), 0644); err != nil {
 		return err
 	}
