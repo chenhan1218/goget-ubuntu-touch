@@ -18,13 +18,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/provisioning"
 	"github.com/snapcore/snapd/release"
@@ -195,105 +195,23 @@ func (s *Snapper) install(systemPath string) error {
 	dirs.SetRootDir(systemPath)
 	defer dirs.SetRootDir("/")
 
-	// FIXME: support downloading of the snaps
-	// - store metadata next to the snap so that firstboot can pick it up
-	osSnap, err := s.downloadSnap(s.OS)
-	if err != nil {
+	snaps := []string{s.OS, s.Kernel, s.Gadget}
+	outYaml := fmt.Sprintf(`
+bootstrap:
+ rootdir: %s
+ architecture: %s
+ snaps: [%s]
+`, systemPath, s.gadget.Architecture(), strings.Join(snaps, ","))
+	if err := ioutil.WriteFile("bootstrap.yaml", []byte(outYaml), 0644); err != nil {
 		return err
 	}
-	kernelSnap, err := s.downloadSnap(s.Kernel)
-	if err != nil {
-		return err
+	cmd := exec.Command("snap", "bootstrap", "bootstrap.yaml")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot run snap bootstrap: %s", err)
 	}
-	gadgetSnap, err := s.downloadSnap(s.Gadget)
-	if err != nil {
-		return err
-	}
-
-	// now copy snaps in place, do not bother using snapd to install
-	// for now, u-d-f should be super minimal
-	for _, src := range []string{
-		osSnap,
-		kernelSnap,
-		gadgetSnap,
-	} {
-		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
-			return err
-		}
-
-		// this ensures we get exactly the same name as snapd does
-		// expect for the final snap
-		dst, err := snapTargetPathFromSnapFile(src)
-		if err != nil {
-			return err
-		}
-
-		// copy snap
-		if err := copyFile(src, dst); err != nil {
-			return err
-		}
-		// and the matching sideinfo (if there is one)
-		if osutil.FileExists(src + ".sideinfo") {
-			if err := copyFile(src+".sideinfo", dst+".sideinfo"); err != nil {
-				return err
-			}
-		}
-
-	}
-
-	// set the bootvars for kernel/os snaps, the latest snappy is
-	// not activating the snaps on install anymore (with inhibit)
-	// so we need to work around that here (only on first boot)
-	//
-	// there is also no mounted os/kernel snap in the systemPath
-	// all we have here is the blobs
-
-	bootloader, err := partition.FindBootloader()
-	if err != nil {
-		return fmt.Errorf("can not set kernel/os bootvars: %s", err)
-	}
-
-	snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
-	if len(snaps) == 0 {
-		return fmt.Errorf("internal error: cannot find os/kernel snap")
-	}
-	for _, fullname := range snaps {
-		bootvar := ""
-		bootvar2 := ""
-
-		// detect type
-		snapFile, err := snap.Open(fullname)
-		if err != nil {
-			return fmt.Errorf("can not read %v", fullname)
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-		if err != nil {
-			return fmt.Errorf("can not get info for %v", fullname)
-		}
-		switch info.Type {
-		case snap.TypeOS:
-			bootvar = "snappy_os"
-			bootvar2 = "snappy_good_os"
-		case snap.TypeKernel:
-			bootvar = "snappy_kernel"
-			bootvar2 = "snappy_good_kernel"
-		}
-
-		name := filepath.Base(fullname)
-		for _, b := range []string{bootvar, bootvar2} {
-			if b != "" {
-				if err := bootloader.SetBootVar(b, name); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	if s.gadget.Gadget.Hardware.Bootloader == "u-boot" {
-		// FIXME: do the equaivalent of extractKernelAssets here
-		fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
-	}
-
 	return nil
 }
 
