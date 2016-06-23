@@ -220,6 +220,9 @@ func (s *Snapper) install(systemPath string) error {
 		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 			return err
 		}
+		if err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755); err != nil {
+			return err
+		}
 
 		// this ensures we get exactly the same name as snapd does
 		// expect for the final snap
@@ -228,10 +231,21 @@ func (s *Snapper) install(systemPath string) error {
 			return err
 		}
 
-		// copy snap
+		// copy snap to blob dir so that we can boot (the bootloader
+		// expects stuff here until we fix it)
 		if err := copyFile(src, dst); err != nil {
 			return err
 		}
+
+		// copy again into the seeds/ dir so that it gets installed
+		// on firstboot
+		src = dst
+		dst = filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(src))
+		if err := copyFile(src, dst); err != nil {
+			return err
+		}
+
+		// FIXME: not really neeed
 		// and the matching sideinfo (if there is one)
 		if osutil.FileExists(src + ".sideinfo") {
 			if err := copyFile(src+".sideinfo", dst+".sideinfo"); err != nil {
