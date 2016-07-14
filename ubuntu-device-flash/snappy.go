@@ -18,7 +18,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -192,21 +191,53 @@ func copyFile(src, dst string) error {
 }
 
 func (s *Snapper) install(systemPath string) error {
-	snaps := []string{s.OS, s.Kernel, s.Gadget}
-	snaps = append(snaps, s.Development.Install...)
-
-	outYaml := fmt.Sprintf(`
-bootstrap:
- rootdir: %s
- architecture: %s
- channel: %s
- store-id: %s
- snaps: [%s]
-`, systemPath, s.gadget.Architecture(), s.Channel, s.StoreID, strings.Join(snaps, ","))
-	if err := ioutil.WriteFile("bootstrap.yaml", []byte(outYaml), 0644); err != nil {
+	gadgetUnpackDir, err := ioutil.TempDir("", "gadget")
+	if err != nil {
 		return err
 	}
-	cmd := exec.Command("snap", "bootstrap", "bootstrap.yaml")
+
+	store := s.StoreID
+	if store == "" {
+		store = "canonical"
+	}
+
+	outModel := fmt.Sprintf(`type: model
+series: 16
+authority-id: my-brand
+brand-id: my-brand
+model: my-model
+class: my-class
+allowed-modes:  
+required-snaps:  
+architecture: %s
+store: %s
+gadget: %s
+kernel: %s
+core: %s
+timestamp: 2016-01-02T10:00:00-05:00
+body-length: 0
+
+openpgpg 2cln
+EOF
+`, s.gadget.Architecture(), store, s.Gadget, s.Kernel, s.OS)
+	fmt.Println(outModel)
+
+	if err := ioutil.WriteFile("mymodel.assertion", []byte(outModel), 0644); err != nil {
+		return err
+	}
+
+	os.Setenv("SNAP_REEXEC", "0")
+	cmdArgs := []string{"snap", "weld",
+		"--channel", s.Channel,
+		"--root-dir", systemPath,
+		"--gadget-unpack-dir", gadgetUnpackDir,
+		"mymodel.assertion",
+	}
+	for _, extra := range s.Development.Install {
+		cmdArgs = append(cmdArgs, "--extra-snaps="+extra)
+	}
+
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -241,14 +272,14 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	// we need to download and extract the squashfs snap
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
-		repo := store.NewUbuntuStoreSnapRepository(nil, s.StoreID)
-		snap, err := repo.Snap(gadgetPackage, s.Channel, nil)
+		repo := store.New(nil, s.StoreID, nil)
+		snap, err := repo.Snap(gadgetPackage, s.Channel, false, nil)
 		if err != nil {
 			return fmt.Errorf("expected a gadget snaps: %s", err)
 		}
 
 		pb := progress.NewTextProgress()
-		downloadedSnap, err = repo.Download(snap, pb, nil)
+		downloadedSnap, err = repo.Download(gadgetPackage, &snap.DownloadInfo, pb, nil)
 		if err != nil {
 			return err
 		}
@@ -381,13 +412,13 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 	release.Series = s.Positional.Release
 
-	m := store.NewUbuntuStoreSnapRepository(nil, s.StoreID)
-	snap, err := m.Snap(snapName, s.Channel, nil)
+	m := store.New(nil, s.StoreID, nil)
+	snap, err := m.Snap(snapName, s.Channel, false, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
 	pb := progress.NewTextProgress()
-	tmpName, err := m.Download(snap, pb, nil)
+	tmpName, err := m.Download(snapName, &snap.DownloadInfo, pb, nil)
 	if err != nil {
 		return "", err
 	}
@@ -482,22 +513,6 @@ func (s *Snapper) setup() error {
 			return fmt.Errorf("boot/ubuntu bind mount failed with: %s %v ", err, string(o))
 		}
 		defer exec.Command("umount", dst).Run()
-
-		// TERRIBLE but we need a /boot/grub/grub.cfg so that
-		//          the kernel and os snap can be installed
-		glob, err := filepath.Glob(filepath.Join(s.stagingRootPath, "gadget", "*", "*", "grub.cfg"))
-		if err != nil {
-			return fmt.Errorf("grub.cfg glob failed: %s", err)
-		}
-		if len(glob) != 1 {
-			return fmt.Errorf("can not find a valid grub.cfg, found %v instead", len(glob))
-		}
-		gadgetGrubCfg := glob[0]
-		cmd = exec.Command("cp", gadgetGrubCfg, grubUbuntu)
-		o, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to copy %s %s", err, o)
-		}
 	case "u-boot":
 		src := s.img.Boot()
 		dst = filepath.Join(systemPath, "/boot/uboot")
