@@ -195,20 +195,8 @@ func (s *Snapper) install(systemPath string) error {
 	dirs.SetRootDir(systemPath)
 	defer dirs.SetRootDir("/")
 
-	// FIXME: support downloading of the snaps
-	// - store metadata next to the snap so that firstboot can pick it up
-	osSnap, err := s.downloadSnap(s.OS)
-	if err != nil {
-		return err
-	}
-	kernelSnap, err := s.downloadSnap(s.Kernel)
-	if err != nil {
-		return err
-	}
-	gadgetSnap, err := s.downloadSnap(s.Gadget)
-	if err != nil {
-		return err
-	}
+	snaps := []string{s.OS, s.Kernel, s.Gadget}
+	snaps = append(snaps, s.Development.Install...)
 
 	for _, d := range []string{dirs.SnapBlobDir, filepath.Join(dirs.SnapSeedDir, "snaps")} {
 		if err := os.MkdirAll(d, 0755); err != nil {
@@ -218,11 +206,12 @@ func (s *Snapper) install(systemPath string) error {
 
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
-	for _, src := range []string{
-		osSnap,
-		kernelSnap,
-		gadgetSnap,
-	} {
+	for _, snapName := range snaps {
+		src, err := s.downloadSnap(snapName)
+		if err != nil {
+			return err
+		}
+
 		// this ensures we get exactly the same name as snapd does
 		// expect for the final snap
 		dst, err := snapTargetPathFromSnapFile(src)
@@ -260,7 +249,7 @@ func (s *Snapper) install(systemPath string) error {
 		return fmt.Errorf("can not set kernel/os bootvars: %s", err)
 	}
 
-	snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+	snaps, _ = filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
 	if len(snaps) == 0 {
 		return fmt.Errorf("internal error: cannot find os/kernel snap")
 	}
@@ -477,7 +466,7 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	m := store.New(nil, s.StoreID, nil)
 	snap, err := m.Snap(snapName, s.Channel, false, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to find os snap: %s", err)
+		return "", fmt.Errorf("failed to find snap %q: %s", snapName, err)
 	}
 	pb := progress.NewTextProgress()
 	tmpName, err := m.Download(snapName, &snap.DownloadInfo, pb, nil)
