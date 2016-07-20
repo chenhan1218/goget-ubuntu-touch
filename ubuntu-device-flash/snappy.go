@@ -210,7 +210,7 @@ func (s *Snapper) install(systemPath string) error {
 		return err
 	}
 
-	for _, d := range []string{dirs.SnapBlobDir, dirs.SnapSeedDir} {
+	for _, d := range []string{dirs.SnapBlobDir, filepath.Join(dirs.SnapSeedDir, "snaps")} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
