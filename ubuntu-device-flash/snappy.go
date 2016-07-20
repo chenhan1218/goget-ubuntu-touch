@@ -320,14 +320,14 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	// we need to download and extract the squashfs snap
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
-		repo := store.NewUbuntuStoreSnapRepository(nil, s.StoreID)
-		snap, err := repo.Snap(gadgetPackage, s.Channel, nil)
+		repo := store.New(nil, s.StoreID, nil)
+		snap, err := repo.Snap(gadgetPackage, s.Channel, false, nil)
 		if err != nil {
 			return fmt.Errorf("expected a gadget snaps: %s", err)
 		}
 
 		pb := progress.NewTextProgress()
-		downloadedSnap, err = repo.Download(snap, pb, nil)
+		downloadedSnap, err = repo.Download(gadgetPackage, &snap.DownloadInfo, pb, nil)
 		if err != nil {
 			return err
 		}
@@ -465,13 +465,13 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 	release.Series = s.Positional.Release
 
-	m := store.NewUbuntuStoreSnapRepository(nil, s.StoreID)
-	snap, err := m.Snap(snapName, s.Channel, nil)
+	m := store.New(nil, s.StoreID, nil)
+	snap, err := m.Snap(snapName, s.Channel, false, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
 	pb := progress.NewTextProgress()
-	tmpName, err := m.Download(snap, pb, nil)
+	tmpName, err := m.Download(snapName, &snap.DownloadInfo, pb, nil)
 	if err != nil {
 		return "", err
 	}
