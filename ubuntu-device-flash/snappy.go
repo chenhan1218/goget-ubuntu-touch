@@ -210,6 +210,12 @@ func (s *Snapper) install(systemPath string) error {
 		return err
 	}
 
+	for _, d := range []string{dirs.SnapBlobDir, dirs.SnapSeedDir} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return err
+		}
+	}
+
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
 	for _, src := range []string{
@@ -217,10 +223,6 @@ func (s *Snapper) install(systemPath string) error {
 		kernelSnap,
 		gadgetSnap,
 	} {
-		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
-			return err
-		}
-
 		// this ensures we get exactly the same name as snapd does
 		// expect for the final snap
 		dst, err := snapTargetPathFromSnapFile(src)
@@ -234,6 +236,13 @@ func (s *Snapper) install(systemPath string) error {
 		}
 		// and the matching sideinfo
 		if err := copyFile(src+".sideinfo", dst+".sideinfo"); err != nil {
+			return err
+		}
+
+		// and copy snap into the seeds dir
+		src = dst
+		dst = filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(src))
+		if err := copyFile(src, dst); err != nil {
 			return err
 		}
 
