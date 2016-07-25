@@ -287,7 +287,7 @@ func (s *Snapper) install(systemPath string) error {
 
 	if s.gadget.Gadget.Hardware.Bootloader == "u-boot" {
 		// FIXME: do the equaivalent of extractKernelAssets here
-		fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
+		return fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
 	}
 
 	return nil
@@ -342,6 +342,30 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
 	} else {
 		println(string(output))
+	}
+
+	// HORRIBLE - there is always one more circle of hell, never assume
+	//            you have reached the end of it yet
+	//
+	// the new gadget snaps do no have the old gadget specific stuff
+	// anymore - however we still need it to create images until we
+	// have the new stuff available
+	var gadgetMetaYaml string
+	switch gadgetPackage {
+	case "canonical-pc":
+		gadgetMetaYaml = compatCanonicalPCamd64
+	case "canonical-i386":
+		gadgetMetaYaml = compatCanonicalPCi386
+	case "canonical-pi2":
+		gadgetMetaYaml = compatCanonicalPi2
+	case "canonical-dragon":
+		gadgetMetaYaml = compatCanonicalDragon
+
+	}
+	if gadgetMetaYaml != "" {
+		if err := ioutil.WriteFile(filepath.Join(fakeGadgetDir, "meta/snap.yaml"), []byte(gadgetMetaYaml), 0644); err != nil {
+			return err
+		}
 	}
 
 	if err := s.loadGadget(tempDir); err != nil {
