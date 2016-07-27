@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -256,7 +257,7 @@ func (s *Snapper) install(systemPath string) error {
 			return err
 		}
 		seed.Snaps = append(seed.Snaps, &seedSnapYaml{
-			Path:     dst,
+			Path:     strings.TrimPrefix(dst, dirs.GlobalRootDir),
 			SideInfo: sideinfo,
 		})
 	}
