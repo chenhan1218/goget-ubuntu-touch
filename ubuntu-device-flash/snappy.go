@@ -191,6 +191,15 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
+type seedSnapYaml struct {
+	Path          string `yaml:"path"`
+	snap.SideInfo `yaml:",inline"`
+}
+
+type seedYaml struct {
+	Snaps []*seedSnapYaml `yaml:"snaps"`
+}
+
 func (s *Snapper) install(systemPath string) error {
 	dirs.SetRootDir(systemPath)
 	defer dirs.SetRootDir("/")
@@ -204,6 +213,7 @@ func (s *Snapper) install(systemPath string) error {
 		}
 	}
 
+	var seed seedYaml
 	// now copy snaps in place, do not bother using snapd to install
 	// for now, u-d-f should be super minimal
 	for _, snapName := range snaps {
@@ -235,6 +245,30 @@ func (s *Snapper) install(systemPath string) error {
 			return err
 		}
 
+		// add to seed.yaml
+		var sideinfo snap.SideInfo
+		data, err := ioutil.ReadFile(src + ".sideinfo")
+		if err != nil {
+			return err
+		}
+		err = yaml.Unmarshal(data, &sideinfo)
+		if err != nil {
+			return err
+		}
+		seed.Snaps = append(seed.Snaps, &seedSnapYaml{
+			Path:     dst,
+			SideInfo: sideinfo,
+		})
+	}
+
+	// create seed.yaml
+	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	data, err := yaml.Marshal(&seed)
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(seedFn, data, 0644); err != nil {
+		return err
 	}
 
 	// set the bootvars for kernel/os snaps, the latest snappy is
@@ -504,7 +538,7 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 
 	// write out metadata for first boot
-	out, err := json.Marshal(snap)
+	out, err := json.Marshal(snap.SideInfo)
 	if err != nil {
 		return "", err
 	}
