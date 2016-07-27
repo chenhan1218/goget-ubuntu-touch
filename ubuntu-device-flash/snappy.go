@@ -268,11 +268,11 @@ func (s *Snapper) install(systemPath string) error {
 		}
 		switch info.Type {
 		case snap.TypeOS:
-			bootvar = "snappy_os"
-			bootvar2 = "snappy_good_os"
+			bootvar = "snap_core"
+			bootvar2 = "snap_try_core"
 		case snap.TypeKernel:
-			bootvar = "snappy_kernel"
-			bootvar2 = "snappy_good_kernel"
+			bootvar = "snap_kernel"
+			bootvar2 = "snap_try_kernel"
 		}
 
 		name := filepath.Base(fullname)
@@ -360,7 +360,6 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		gadgetMetaYaml = compatCanonicalPi2
 	case "canonical-dragon":
 		gadgetMetaYaml = compatCanonicalDragon
-
 	}
 	if gadgetMetaYaml != "" {
 		if err := ioutil.WriteFile(filepath.Join(fakeGadgetDir, "meta/snap.yaml"), []byte(gadgetMetaYaml), 0644); err != nil {
