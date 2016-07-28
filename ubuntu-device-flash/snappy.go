@@ -193,7 +193,7 @@ func copyFile(src, dst string) error {
 }
 
 type seedSnapYaml struct {
-	Path          string `yaml:"path"`
+	File          string `yaml:"file"`
 	snap.SideInfo `yaml:",inline"`
 }
 
@@ -257,7 +257,7 @@ func (s *Snapper) install(systemPath string) error {
 			return err
 		}
 		seed.Snaps = append(seed.Snaps, &seedSnapYaml{
-			Path:     strings.TrimPrefix(dst, dirs.GlobalRootDir),
+			File:     filepath.Base(dst),
 			SideInfo: sideinfo,
 		})
 	}
