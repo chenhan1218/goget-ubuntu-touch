@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -438,6 +439,12 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
 	} else {
 		println(string(output))
+	}
+
+	// FIXME: read the name from the meta/snap.yaml instead
+	if osutil.FileExists(gadgetPackage) {
+		gadgetPackage = filepath.Base(gadgetPackage)
+		gadgetPackage = strings.Split(gadgetPackage, "_")[0]
 	}
 
 	// HORRIBLE - there is always one more circle of hell, never assume
