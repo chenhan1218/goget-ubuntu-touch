@@ -144,7 +144,13 @@ func (s Snapper) sanityCheck() error {
 			}
 			return false
 		}
-		whitelist := []string{"canonical-i386", "pc", "canonical-pc", "canonical-pi2", "canonical-dragon", "beagleblack"}
+		whitelist := []string{
+			"canonical-i386",
+			"canonical-pc", "pc",
+			"canonical-pi2", "pi2",
+			"canonical-dragon", "dragonboard",
+			"beagleblack",
+		}
 		if !contains(whitelist, s.Gadget) {
 			return fmt.Errorf("cannot use %q, must be one of: %q", s.Gadget, whitelist)
 		}
@@ -390,9 +396,9 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		gadgetMetaYaml = compatCanonicalPCamd64
 	case "canonical-i386":
 		gadgetMetaYaml = compatCanonicalPCi386
-	case "canonical-pi2":
+	case "canonical-pi2", "pi2":
 		gadgetMetaYaml = compatCanonicalPi2
-	case "canonical-dragon":
+	case "canonical-dragon", "dragonboard":
 		gadgetMetaYaml = compatCanonicalDragon
 	}
 	if gadgetMetaYaml != "" {
