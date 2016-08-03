@@ -262,6 +262,18 @@ func (s *Snapper) install(systemPath string) error {
 		if err != nil {
 			return err
 		}
+
+		if sideinfo.RealName == "" {
+			snapFile, err := snap.Open(dst)
+			if err != nil {
+				return fmt.Errorf("can not read %v", dst)
+			}
+			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+			if err != nil {
+				return fmt.Errorf("can not get info for %v", dst)
+			}
+			sideinfo.RealName = info.Name()
+		}
 		seed.Snaps = append(seed.Snaps, &seedSnapYaml{
 			File:     filepath.Base(dst),
 			SideInfo: sideinfo,
@@ -371,14 +383,6 @@ func mount(src, dst string) error {
 
 func umount(dir string) error {
 	cmd := exec.Command("umount", dir)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
-	}
-	return nil
-}
-
-func unpackSnap(snapPath, src, dstDir string) error {
-	cmd := exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, snapPath, src)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
 	}
@@ -640,7 +644,7 @@ func (s *Snapper) setup() error {
 	}
 
 	// mount os snap
-	cmd := exec.Command("mount", osSnap, systemPath)
+	cmd := exec.Command("mount", "-o", "loop", osSnap, systemPath)
 	if o, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("os snap mount failed with: %s %v ", err, string(o))
 	}
