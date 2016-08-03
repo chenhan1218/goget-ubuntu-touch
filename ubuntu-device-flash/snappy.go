@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
@@ -265,6 +266,7 @@ func (s *Snapper) install(systemPath string) error {
 			File:     filepath.Base(dst),
 			SideInfo: sideinfo,
 		})
+
 	}
 
 	// create seed.yaml
@@ -323,13 +325,63 @@ func (s *Snapper) install(systemPath string) error {
 				}
 			}
 		}
+
+		// deal with u-boot
+		if info.Type == snap.TypeKernel && s.gadget.Gadget.Hardware.Bootloader == "u-boot" {
+			// get the sideinfo
+			var sideinfo snap.SideInfo
+			data, err := ioutil.ReadFile(fullname + ".sideinfo")
+			if err != nil {
+				return err
+			}
+			err = yaml.Unmarshal(data, &sideinfo)
+			if err != nil {
+				return err
+			}
+			info.SideInfo = sideinfo
+
+			// mount (because extractKernel needs a mounted dir)
+			if err := os.MkdirAll(info.MountDir(), 0755); err != nil {
+				return err
+			}
+			if err := mount(info.MountFile(), info.MountDir()); err != nil {
+				return nil
+			}
+			defer umount(info.MountDir())
+
+			// extract
+			pb := progress.NewTextProgress()
+			if err := boot.ExtractKernelAssets(info, pb); err != nil {
+				return err
+			}
+		}
+
 	}
 
-	if s.gadget.Gadget.Hardware.Bootloader == "u-boot" {
-		// FIXME: do the equaivalent of extractKernelAssets here
-		return fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
-	}
+	return nil
+}
 
+func mount(src, dst string) error {
+	cmd := exec.Command("mount", src, dst)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
+	}
+	return nil
+}
+
+func umount(dir string) error {
+	cmd := exec.Command("umount", dir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
+	}
+	return nil
+}
+
+func unpackSnap(snapPath, src, dstDir string) error {
+	cmd := exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, snapPath, src)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
+	}
 	return nil
 }
 
