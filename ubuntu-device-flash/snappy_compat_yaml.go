@@ -69,6 +69,42 @@ gadget:
         - path: boot-assets/overlays.tgz
 `
 
+var compatCanonicalPi3 = `
+name: pi3
+gadget:
+  hardware:
+    platform: bcm2836-rpi-3-b
+    architecture: armhf
+    partition-layout: minimal
+    bootloader: u-boot
+    boot-assets:
+      files:
+        - path: boot-assets/bcm2708-rpi-b.dtb
+        - path: boot-assets/bcm2708-rpi-b-plus.dtb
+        - path: boot-assets/bcm2708-rpi-cm.dtb
+        - path: boot-assets/bcm2709-rpi-2-b.dtb
+        - path: boot-assets/bcm2710-rpi-3-b.dtb
+        - path: boot-assets/bootcode.bin
+        - path: boot-assets/cmdline.txt
+        - path: boot-assets/config.txt
+        - path: boot-assets/COPYING.linux
+        - path: boot-assets/fixup_cd.dat
+        - path: boot-assets/fixup.dat
+        - path: boot-assets/fixup_db.dat
+        - path: boot-assets/fixup_x.dat
+        - path: boot-assets/LICENCE.broadcom
+        - path: boot-assets/overlays.tgz
+        - path: boot-assets/README
+        - path: boot-assets/start_cd.elf
+        - path: boot-assets/start_db.elf
+        - path: boot-assets/start.elf
+        - path: boot-assets/start_x.elf
+        - path: boot-assets/uboot.bin
+        - path: boot-assets/uboot.env
+        - path: boot-assets/uboot.env.in
+        - path: boot-assets/uboot.patch
+`
+
 var compatCanonicalDragon = `
 name: canonical-dragon
 gadget:

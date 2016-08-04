@@ -150,6 +150,7 @@ func (s Snapper) sanityCheck() error {
 			"canonical-i386",
 			"canonical-pc", "pc",
 			"canonical-pi2", "pi2",
+			"pi3",
 			"canonical-dragon", "dragonboard",
 			"beagleblack",
 		}
@@ -461,6 +462,8 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		gadgetMetaYaml = compatCanonicalPCi386
 	case "canonical-pi2", "pi2":
 		gadgetMetaYaml = compatCanonicalPi2
+	case "pi3":
+		gadgetMetaYaml = compatCanonicalPi3
 	case "canonical-dragon", "dragonboard":
 		gadgetMetaYaml = compatCanonicalDragon
 	}
