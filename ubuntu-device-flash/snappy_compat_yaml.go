@@ -159,3 +159,65 @@ gadget:
             size: 512
             type: 20117F86-E985-4357-B9EE-374BC1D8487D
 `
+
+var compatPlanoYaml = `
+name: plano-amd64
+version: 1.23
+summary: AMD64 generic package
+description: |
+    This package contains a simple OEM snappy package for system configuration
+type: gadget
+
+slots:
+    cloud-led:
+        interface: bool-file
+        path: /sys/class/gpio/gpio346/value
+    rs232-port-1:
+        interface: serial-port
+        path: /dev/ttyS6
+    rs422-485-port-2:
+        interface: serial-port
+        path: /dev/ttyS4
+    rs485-port-3:
+        interface: serial-port
+        path: /dev/ttyS5
+    rs485-port-4:
+        interface: serial-port
+        path: /dev/ttyS2
+    rs232-port-5-iom:
+        interface: serial-port
+        path: /dev/ttyS7
+    zigbee:
+        interface: serial-port
+        path: /dev/ttyACM0
+
+config:
+    ubuntu-core:
+        autopilot: true
+
+gadget:
+    branding:
+        name: plano
+        subname: based on amd64-generic
+
+    skip-ifup-provisioning: true
+
+#    software:
+#        built-in:
+#            - webdm
+
+    hardware:
+        bootloader: grub
+        architecture: amd64
+        partition-layout: minimal
+        boot-assets:
+            files:
+                - path: grub.cfg
+                - path: fwupdate.efi
+                  target: fwupdate.efi
+                  dst: EFI/ubuntu/fwupdate.efi
+                - path: fwupx64.efi
+                  dst: EFI/ubuntu/fwupx64.efi
+                - path: shimx64.efi
+                  dst: EFI/ubuntu/shimx64.efi
+`

@@ -153,6 +153,7 @@ func (s Snapper) sanityCheck() error {
 			"pi3",
 			"canonical-dragon", "dragonboard",
 			"beagleblack",
+			"plano-amd64",
 		}
 		if !contains(whitelist, s.Gadget) {
 			return fmt.Errorf("cannot use %q, must be one of: %q", s.Gadget, whitelist)
@@ -466,6 +467,8 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		gadgetMetaYaml = compatCanonicalPi3
 	case "canonical-dragon", "dragonboard":
 		gadgetMetaYaml = compatCanonicalDragon
+	case "plano-amd64":
+		gadgetMetaYaml = compatPlanoYaml
 	}
 	if gadgetMetaYaml != "" {
 		if err := ioutil.WriteFile(filepath.Join(fakeGadgetDir, "meta/snap.yaml"), []byte(gadgetMetaYaml), 0644); err != nil {
