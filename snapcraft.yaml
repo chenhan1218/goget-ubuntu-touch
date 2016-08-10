@@ -1,0 +1,20 @@
+name: ubuntu-device-flash
+summary: Flash supported devices with Ubuntu
+description: |
+  Use this tool to flash a suported device with Ubuntu. This works
+  for different kinds of Ubuntu like Core or Touch.
+version: 1
+confinement: devmode
+
+apps:
+  run:
+    command: bin/ubuntu-device-flash
+
+parts:
+  goget-ubuntu-touch:
+    plugin: go
+    source: lp:~mvo/goget-ubuntu-touch/minimal-first-boot-no-prepare-image
+    source-type: bzr
+    go-importpath: launchpad.net/goget-ubuntu-touch
+    snap:
+      - bin/ubuntu-device-flash
