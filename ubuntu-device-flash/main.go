@@ -43,7 +43,7 @@ var parser = flags.NewParser(&globalArgs, flags.HelpFlag)
 var cacheDir = ubuntuimage.GetCacheDir()
 
 func main() {
-	execute(os.Args)
+	execute(os.Args[1:])
 }
 
 func execute(args []string) {
