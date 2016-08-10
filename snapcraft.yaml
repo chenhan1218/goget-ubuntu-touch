@@ -3,7 +3,7 @@ summary: Flash supported devices with Ubuntu
 description: |
   Use this tool to flash a suported device with Ubuntu. This works
   for different kinds of Ubuntu like Core or Touch.
-version: 2
+version: 333
 confinement: devmode
 
 apps:
@@ -16,5 +16,13 @@ parts:
     source: lp:~mvo/goget-ubuntu-touch/minimal-first-boot-no-prepare-image
     source-type: bzr
     go-importpath: launchpad.net/goget-ubuntu-touch
+    organize:
+      sbin/kpartx: bin/kpartx
+      sbin/dmsetup: bin/dmsetup
     snap:
       - bin/ubuntu-device-flash
+      - bin/kpartx
+      - bin/dmsetup
+    stage-packages:
+      - kpartx
+      - dmsetup
