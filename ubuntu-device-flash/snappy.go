@@ -185,11 +185,6 @@ func snapTargetPathFromSnapFile(src string) (string, error) {
 		return "", err
 	}
 
-	// local snap
-	if info.Revision.Unset() {
-		info.Revision = snap.R(-1)
-	}
-
 	return info.MountFile(), nil
 }
 
@@ -266,17 +261,6 @@ func (s *Snapper) install(systemPath string) error {
 			return err
 		}
 
-		if sideinfo.RealName == "" {
-			snapFile, err := snap.Open(dst)
-			if err != nil {
-				return fmt.Errorf("can not read %v", dst)
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-			if err != nil {
-				return fmt.Errorf("can not get info for %v", dst)
-			}
-			sideinfo.RealName = info.Name()
-		}
 		seed.Snaps = append(seed.Snaps, &seedSnapYaml{
 			File:     filepath.Base(dst),
 			SideInfo: sideinfo,
@@ -584,13 +568,27 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	if snapName == "" {
 		return "", nil
 	}
-	// if its pointing to a local file, just return that
+	// pointing to a local file
 	if _, err := os.Stat(snapName); err == nil {
-		// write (empty) metadata
-		if err := ioutil.WriteFile(snapName+".sideinfo", []byte(`{}`), 0644); err != nil {
+		snapFile, err := snap.Open(snapName)
+		if err != nil {
+			return "", fmt.Errorf("can not read %v", snapName)
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		if err != nil {
+			return "", fmt.Errorf("can not get info for %v", snapName)
+		}
+		sideinfo := &snap.SideInfo{
+			RealName: info.Name(),
+			Revision: snap.R(-1),
+		}
+		out, err := json.Marshal(sideinfo)
+		if err != nil {
 			return "", err
 		}
-
+		if err := ioutil.WriteFile(snapName+".sideinfo", []byte(out), 0644); err != nil {
+			return "", err
+		}
 		return snapName, nil
 	}
 	release.Series = s.Positional.Release

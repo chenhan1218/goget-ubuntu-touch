@@ -3,7 +3,7 @@ summary: Flash supported devices with Ubuntu
 description: |
   Use this tool to flash a suported device with Ubuntu. This works
   for different kinds of Ubuntu like Core or Touch.
-version: 333
+version: 4
 confinement: devmode
 
 apps:
