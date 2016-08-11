@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -185,7 +186,12 @@ func (coreCmd *CoreCmd) setupCloudInit() error {
 }
 
 func getAuthorizedSshKey() (string, error) {
-	sshDir := os.ExpandEnv("$HOME/.ssh")
+	// we can not use $HOME because snapd will set it differently
+	user, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	sshDir := filepath.Join(user.HomeDir, ".ssh")
 
 	fis, err := ioutil.ReadDir(sshDir)
 	if err != nil {
