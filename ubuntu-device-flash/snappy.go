@@ -570,7 +570,9 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	release.Series = s.Positional.Release
 
 	m := store.New(nil, s.StoreID, nil)
-	snap, err := m.Snap(snapName, s.Channel, false, nil)
+	// FIXME: make devmode switchable
+	devmode := true
+	snap, err := m.Snap(snapName, s.Channel, devmode, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find snap %q: %s", snapName, err)
 	}
