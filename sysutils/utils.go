@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"syscall"
 )
 
 type unit int64
@@ -66,19 +65,13 @@ func CreateEmptyFile(path string, size int64, u unit) (err error) {
 }
 
 func DropPrivs() error {
-	uid, gid := GetUserEnvInt()
-	if err := syscall.Setregid(-1, gid); err != nil {
-		return errors.New(fmt.Sprintf("Can't drop gid: %s", err))
-	}
-	if err := syscall.Setreuid(-1, uid); err != nil {
-		return errors.New(fmt.Sprintf("Can't drop uid: %s", err))
-	}
+	// FIXME: remove, silly and won't work with go anyway
 	return nil
 }
 
 func EscalatePrivs() error {
-	err := syscall.Setreuid(-1, 0)
-	return err
+	// FIXME: remove, silly and won't work with go anyway
+	return nil
 }
 
 // GetUserEnv checks if the process can drop priviledges by checking if either
