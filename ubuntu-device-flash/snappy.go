@@ -423,8 +423,6 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	cmd := exec.Command("unsquashfs", "-i", "-f", "-d", fakeGadgetDir, downloadedSnap)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
-	} else {
-		println(string(output))
 	}
 
 	// FIXME: read the name from the meta/snap.yaml instead
