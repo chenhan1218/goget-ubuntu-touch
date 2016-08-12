@@ -178,8 +178,8 @@ func (p *parted) create(target string) error {
 
 	if err := partedCmd.Wait(); err != nil {
 		// HACK: show errors
-		go io.Copy(os.Stdout, stdout)
-		go io.Copy(os.Stderr, stderr)
+		io.Copy(os.Stdout, stdout)
+		io.Copy(os.Stderr, stderr)
 		return fmt.Errorf("issues while partitioning: %s", err)
 	}
 
