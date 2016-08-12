@@ -339,40 +339,18 @@ func (s *Snapper) install(systemPath string) error {
 			}
 			info.SideInfo = sideinfo
 
-			// mount (because extractKernel needs a mounted dir)
-			if err := os.MkdirAll(info.MountDir(), 0755); err != nil {
+			// extract
+			snapf, err := snap.Open(fullname)
+			if err != nil {
 				return err
 			}
-			if err := mount(info.MountFile(), info.MountDir()); err != nil {
-				return nil
-			}
-			defer umount(info.MountDir())
-
-			// extract
-			pb := progress.NewTextProgress()
-			if err := boot.ExtractKernelAssets(info, pb); err != nil {
+			if err := boot.ExtractKernelAssets(info, snapf); err != nil {
 				return err
 			}
 		}
 
 	}
 
-	return nil
-}
-
-func mount(src, dst string) error {
-	cmd := exec.Command("mount", src, dst)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
-	}
-	return nil
-}
-
-func umount(dir string) error {
-	cmd := exec.Command("umount", dir)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
-	}
 	return nil
 }
 
