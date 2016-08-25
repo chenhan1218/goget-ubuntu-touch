@@ -187,7 +187,11 @@ func (coreCmd *CoreCmd) setupCloudInit() error {
 
 func getAuthorizedSshKey() (string, error) {
 	// we can not use $HOME because snapd will set it differently
-	user, err := user.Current()
+	userName := "root"
+	if u := os.Getenv("SUDO_USER"); u != "" {
+		userName = u
+	}
+	user, err := user.Lookup(userName)
 	if err != nil {
 		return "", err
 	}
