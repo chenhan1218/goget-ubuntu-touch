@@ -133,24 +133,11 @@ func (s Snapper) sanityCheck() error {
 		return errors.New("need '/bin/systemctl to work")
 	}
 
-	// only allow whitelisted gadget names for now
-	if os.Getenv("UBUNTU_DEVICE_FLASH_IGNORE_UNSTABLE_GADGET_DEFINITION") == "" {
-		contains := func(haystack []string, needle string) bool {
-			for _, elm := range haystack {
-				if elm == needle {
-					return true
-				}
-			}
-			return false
-		}
-		whitelist := []string{"canonical-i386", "canonical-pc", "canonical-pi2", "canonical-dragon", "beagleblack"}
-		if !contains(whitelist, s.Gadget) {
-			return fmt.Errorf("cannot use %q, must be one of: %q", s.Gadget, whitelist)
-		}
-	}
-
-	if s.OS == "" || s.Kernel == "" || s.Gadget == "" {
+	if s.Kernel == "" || s.Gadget == "" {
 		return fmt.Errorf("need exactly one kernel,os,gadget snap")
+	}
+	if s.OS != "" {
+		fmt.Fprintf(os.Stderr, `WARNING: --os is deprecated, it defaults to "ubuntu-core"`)
 	}
 
 	return nil
@@ -191,46 +178,41 @@ func copyFile(src, dst string) error {
 }
 
 func (s *Snapper) install(systemPath string) error {
-	gadgetUnpackDir, err := ioutil.TempDir("", "gadget")
-	if err != nil {
-		return err
-	}
-
-	store := s.StoreID
-	if store == "" {
-		store = "canonical"
-	}
-
 	outModel := fmt.Sprintf(`type: model
 series: 16
 authority-id: my-brand
 brand-id: my-brand
 model: my-model
-class: my-class
-allowed-modes:  
-required-snaps:  
 architecture: %s
 store: %s
 gadget: %s
 kernel: %s
-core: %s
 timestamp: 2016-01-02T10:00:00-05:00
 body-length: 0
 
 openpgpg 2cln
 EOF
-`, s.gadget.Architecture(), store, s.Gadget, s.Kernel, s.OS)
+`, s.gadget.Architecture(), s.StoreID, s.Gadget, s.Kernel)
 	fmt.Println(outModel)
 
 	if err := ioutil.WriteFile("mymodel.assertion", []byte(outModel), 0644); err != nil {
 		return err
 	}
 
+	prepareImageRoot, err := ioutil.TempDir("", "prepare-image")
+	if err != nil {
+		return err
+	}
+	tmpSystemPath := filepath.Join(prepareImageRoot, "root")
+
+	// FIXME: this can go away soon
+	os.Setenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL", "1")
 	os.Setenv("SNAP_REEXEC", "0")
-	cmdArgs := []string{"snap", "weld",
+	cmdArgs := []string{
+		"snap",
+		"prepare-image",
 		"--channel", s.Channel,
-		"--root-dir", systemPath,
-		"--gadget-unpack-dir", gadgetUnpackDir,
+		"--root-dir", prepareImageRoot,
 		"mymodel.assertion",
 	}
 	for _, extra := range s.Development.Install {
@@ -244,6 +226,15 @@ EOF
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot run snap bootstrap: %s", err)
 	}
+
+	mv := exec.Command("cp", "-arv", tmpSystemPath+"*", systemPath)
+	mv.Stdin = os.Stdin
+	mv.Stdout = os.Stdout
+	mv.Stderr = os.Stderr
+	if err := mv.Run(); err != nil {
+		return fmt.Errorf("cannot run snap bootstrap: %s", err)
+	}
+
 	return nil
 }
 
@@ -272,8 +263,10 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 	// we need to download and extract the squashfs snap
 	downloadedSnap := gadgetPackage
 	if !osutil.FileExists(gadgetPackage) {
-		repo := store.New(nil, s.StoreID, nil)
-		snap, err := repo.Snap(gadgetPackage, s.Channel, false, nil)
+		cfg := store.DefaultConfig()
+		cfg.StoreID = s.StoreID
+		repo := store.New(cfg, nil)
+		snap, err := repo.Snap(gadgetPackage, s.Channel, false, snap.R(0), nil)
 		if err != nil {
 			return fmt.Errorf("expected a gadget snaps: %s", err)
 		}
@@ -412,8 +405,10 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	}
 	release.Series = s.Positional.Release
 
-	m := store.New(nil, s.StoreID, nil)
-	snap, err := m.Snap(snapName, s.Channel, false, nil)
+	cfg := store.DefaultConfig()
+	cfg.StoreID = s.StoreID
+	m := store.New(cfg, nil)
+	snap, err := m.Snap(snapName, s.Channel, false, snap.R(0), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find os snap: %s", err)
 	}
