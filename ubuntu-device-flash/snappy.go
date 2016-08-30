@@ -202,7 +202,9 @@ EOF
 	if err != nil {
 		return err
 	}
-	tmpSystemPath := filepath.Join(prepareImageRoot, "root")
+	defer os.RemoveAll(prepareImageRoot)
+
+	tmpSystemPath := filepath.Join(prepareImageRoot, "image")
 
 	// FIXME: this can go away soon
 	os.Setenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL", "1")
@@ -226,7 +228,7 @@ EOF
 		return fmt.Errorf("cannot run snap bootstrap: %s", err)
 	}
 
-	mv := exec.Command("cp", "-arv", tmpSystemPath+"/*", systemPath)
+	mv := exec.Command("sh", "-c", fmt.Sprintf("cp -rv %s/* %s", tmpSystemPath, systemPath))
 	mv.Stdin = os.Stdin
 	mv.Stdout = os.Stdout
 	mv.Stderr = os.Stderr
