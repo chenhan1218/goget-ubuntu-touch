@@ -84,7 +84,7 @@ type Snapper struct {
 	Output  string `long:"output" short:"o" description:"Name of the image file to create" required:"true"`
 	Gadget  string `long:"gadget" description:"The snappy gadget package to base the image out of" default:"generic-amd64"`
 	StoreID string `long:"store" description:"Set an alternate store id."`
-	OS      string `long:"os" description:"path to the OS snap."`
+	OS      string `long:"os" description:"path to the OS snap." default:"ubuntu-core"`
 	Kernel  string `long:"kernel" description:"path to the kernel snap."`
 
 	Development struct {
@@ -136,7 +136,7 @@ func (s Snapper) sanityCheck() error {
 	if s.Kernel == "" || s.Gadget == "" {
 		return fmt.Errorf("need exactly one kernel,os,gadget snap")
 	}
-	if s.OS != "" {
+	if s.OS != "ubuntu-core" {
 		fmt.Fprintf(os.Stderr, `WARNING: --os is deprecated, it defaults to "ubuntu-core"`)
 	}
 
@@ -179,6 +179,7 @@ func copyFile(src, dst string) error {
 
 func (s *Snapper) install(systemPath string) error {
 	outModel := fmt.Sprintf(`type: model
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 series: 16
 authority-id: my-brand
 brand-id: my-brand
@@ -193,8 +194,6 @@ body-length: 0
 openpgpg 2cln
 EOF
 `, s.gadget.Architecture(), s.StoreID, s.Gadget, s.Kernel)
-	fmt.Println(outModel)
-
 	if err := ioutil.WriteFile("mymodel.assertion", []byte(outModel), 0644); err != nil {
 		return err
 	}
@@ -212,8 +211,8 @@ EOF
 		"snap",
 		"prepare-image",
 		"--channel", s.Channel,
-		"--root-dir", prepareImageRoot,
 		"mymodel.assertion",
+		prepareImageRoot,
 	}
 	for _, extra := range s.Development.Install {
 		cmdArgs = append(cmdArgs, "--extra-snaps="+extra)
@@ -227,7 +226,7 @@ EOF
 		return fmt.Errorf("cannot run snap bootstrap: %s", err)
 	}
 
-	mv := exec.Command("cp", "-arv", tmpSystemPath+"*", systemPath)
+	mv := exec.Command("cp", "-arv", tmpSystemPath+"/*", systemPath)
 	mv.Stdin = os.Stdin
 	mv.Stdout = os.Stdout
 	mv.Stderr = os.Stderr
@@ -289,6 +288,30 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
 	} else {
 		println(string(output))
+	}
+
+	// HORRIBLE - there is always one more circle of hell, never assume
+	//            you have reached the end of it yet
+	//
+	// the new gadget snaps do no have the old gadget specific stuff
+	// anymore - however we still need it to create images until we
+	// have the new stuff available
+	var gadgetMetaYaml string
+	switch gadgetPackage {
+	case "pc":
+		gadgetMetaYaml = compatCanonicalPCamd64
+	case "386":
+		gadgetMetaYaml = compatCanonicalPCi386
+	case "pi2":
+		gadgetMetaYaml = compatCanonicalPi2
+	case "dragon":
+		gadgetMetaYaml = compatCanonicalDragon
+
+	}
+	if gadgetMetaYaml != "" {
+		if err := ioutil.WriteFile(filepath.Join(fakeGadgetDir, "meta/snap.yaml"), []byte(gadgetMetaYaml), 0644); err != nil {
+			return err
+		}
 	}
 
 	if err := s.loadGadget(tempDir); err != nil {
