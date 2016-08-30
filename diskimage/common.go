@@ -9,7 +9,6 @@ package diskimage
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -150,17 +149,7 @@ func (o *GadgetDescription) SystemParts() []string {
 }
 
 func (o GadgetDescription) InstallPath() (string, error) {
-
-	glob, err := filepath.Glob(fmt.Sprintf("%s/gadget/*/*", o.rootDir))
-	if err != nil {
-		return "", err
-	}
-
-	if len(glob) != 1 {
-		return "", errors.New("gadget package not installed")
-	}
-
-	return glob[0], nil
+	return o.rootDir, nil
 }
 
 func (o GadgetDescription) Architecture() string {

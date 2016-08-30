@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/provisioning"
@@ -82,10 +82,6 @@ func (f imageFlavor) rootSize() int {
 type Snapper struct {
 	Channel string `long:"channel" description:"Specify the channel to use" default:"stable"`
 	Output  string `long:"output" short:"o" description:"Name of the image file to create" required:"true"`
-	Gadget  string `long:"gadget" description:"The snappy gadget package to base the image out of" default:"generic-amd64"`
-	StoreID string `long:"store" description:"Set an alternate store id."`
-	OS      string `long:"os" description:"path to the OS snap." default:"ubuntu-core"`
-	Kernel  string `long:"kernel" description:"path to the kernel snap."`
 
 	Development struct {
 		Install       []string `long:"install" description:"Install additional packages (can be called multiple times)"`
@@ -94,13 +90,17 @@ type Snapper struct {
 	} `group:"Development"`
 
 	Positional struct {
-		Release string `positional-arg-name:"release" description:"The release to base the image out of (16 or rolling)" required:"true"`
+		Release        string `positional-arg-name:"release" description:"The release to base the image out of (16 or rolling)" required:"true"`
+		ModelAssertion string `positional-arg-name:"model-assertion" description:"The model assertion to use" required:"true"`
 	} `positional-args:"yes" required:"yes"`
 
 	img             diskimage.CoreImage
 	hardware        diskimage.HardwareDescription
 	gadget          diskimage.GadgetDescription
 	stagingRootPath string
+
+	prepareImagePath string
+	modelAssertion   *asserts.Model
 
 	size int64
 
@@ -131,13 +131,6 @@ func (s Snapper) sanityCheck() error {
 	// error message instead of super strange error later
 	if !osutil.FileExists("/bin/systemctl") {
 		return errors.New("need '/bin/systemctl to work")
-	}
-
-	if s.Kernel == "" || s.Gadget == "" {
-		return fmt.Errorf("need exactly one kernel,os,gadget snap")
-	}
-	if s.OS != "ubuntu-core" {
-		fmt.Fprintf(os.Stderr, `WARNING: --os is deprecated, it defaults to "ubuntu-core"`)
 	}
 
 	return nil
@@ -177,44 +170,31 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-func (s *Snapper) install(systemPath string) error {
-	outModel := fmt.Sprintf(`type: model
-sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-series: 16
-authority-id: my-brand
-brand-id: my-brand
-model: my-model
-architecture: %s
-store: %s
-gadget: %s
-kernel: %s
-timestamp: 2016-01-02T10:00:00-05:00
-body-length: 0
-
-openpgpg 2cln
-EOF
-`, s.gadget.Architecture(), s.StoreID, s.Gadget, s.Kernel)
-	if err := ioutil.WriteFile("mymodel.assertion", []byte(outModel), 0644); err != nil {
-		return err
-	}
-
-	prepareImageRoot, err := ioutil.TempDir("", "prepare-image")
+func (s *Snapper) prepareImage() error {
+	var err error
+	s.prepareImagePath, err = ioutil.TempDir("", "prepare-image")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(prepareImageRoot)
 
-	tmpSystemPath := filepath.Join(prepareImageRoot, "image")
+	raw, err := ioutil.ReadFile(s.Positional.ModelAssertion)
+	if err != nil {
+		return err
+	}
+	as, err := asserts.Decode(raw)
+	if err != nil {
+		return err
+	}
+	s.modelAssertion = as.(*asserts.Model)
+	arch.SetArchitecture(arch.ArchitectureType(s.modelAssertion.Architecture()))
 
-	// FIXME: this can go away soon
-	os.Setenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL", "1")
 	os.Setenv("SNAP_REEXEC", "0")
 	cmdArgs := []string{
 		"snap",
 		"prepare-image",
 		"--channel", s.Channel,
-		"mymodel.assertion",
-		prepareImageRoot,
+		s.Positional.ModelAssertion,
+		s.prepareImagePath,
 	}
 	for _, extra := range s.Development.Install {
 		cmdArgs = append(cmdArgs, "--extra-snaps="+extra)
@@ -227,6 +207,11 @@ EOF
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot run snap bootstrap: %s", err)
 	}
+	return nil
+}
+
+func (s *Snapper) install(systemPath string) error {
+	tmpSystemPath := filepath.Join(s.prepareImagePath, "image")
 
 	mv := exec.Command("sh", "-c", fmt.Sprintf("cp -rv %s/* %s", tmpSystemPath, systemPath))
 	mv.Stdin = os.Stdin
@@ -240,57 +225,7 @@ EOF
 }
 
 func (s *Snapper) extractGadget(gadgetPackage string) error {
-	if gadgetPackage == "" {
-		return nil
-	}
-
-	tempDir, err := ioutil.TempDir("", "gadget")
-	if err != nil {
-		return err
-	}
-
-	// we need to fix the permissions for tempdir to  be seteuid friendly
-	if err := os.Chmod(tempDir, 0755); err != nil {
-		return err
-	}
-
-	s.stagingRootPath = tempDir
-	os.MkdirAll(filepath.Join(tempDir, "/snap"), 0755)
-
-	dirs.SetRootDir(tempDir)
-	defer dirs.SetRootDir("/")
-	release.Series = s.Positional.Release
-
-	// we need to download and extract the squashfs snap
-	downloadedSnap := gadgetPackage
-	if !osutil.FileExists(gadgetPackage) {
-		cfg := store.DefaultConfig()
-		cfg.StoreID = s.StoreID
-		repo := store.New(cfg, nil)
-		snap, err := repo.Snap(gadgetPackage, s.Channel, false, snap.R(0), nil)
-		if err != nil {
-			return fmt.Errorf("expected a gadget snaps: %s", err)
-		}
-
-		pb := progress.NewTextProgress()
-		downloadedSnap, err = repo.Download(gadgetPackage, &snap.DownloadInfo, pb, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	// the fake snap needs to be in an expected location so that
-	// s.loadGadget() is happy
-	fakeGadgetDir := filepath.Join(tempDir, "/gadget/fake-gadget/1.0-fake/")
-	if err := os.MkdirAll(fakeGadgetDir, 0755); err != nil {
-		return err
-	}
-	cmd := exec.Command("unsquashfs", "-i", "-f", "-d", fakeGadgetDir, downloadedSnap)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("snap unpack failed with: %v (%v)", err, string(output))
-	} else {
-		println(string(output))
-	}
+	fakeGadgetDir := filepath.Join(s.prepareImagePath, "gadget")
 
 	// HORRIBLE - there is always one more circle of hell, never assume
 	//            you have reached the end of it yet
@@ -316,41 +251,17 @@ func (s *Snapper) extractGadget(gadgetPackage string) error {
 		}
 	}
 
-	if err := s.loadGadget(tempDir); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Snapper) loadGadget(systemPath string) error {
-	pkgs, err := filepath.Glob(filepath.Join(systemPath, "/gadget/*/*/meta/snap.yaml"))
-	if err != nil {
-		return err
-	}
-
-	// checking for len(pkgs) > 2 due to the 'current' symlink
-	if len(pkgs) == 0 {
-		return errors.New("no gadget package found")
-	} else if len(pkgs) > 2 || err != nil {
-		return errors.New("too many gadget packages installed")
-	}
-
-	f, err := ioutil.ReadFile(pkgs[0])
+	f, err := ioutil.ReadFile(filepath.Join(fakeGadgetDir, "meta/snap.yaml"))
 	if err != nil {
 		return errors.New("failed to read gadget yaml")
 	}
-
 	var gadget diskimage.GadgetDescription
 	if err := yaml.Unmarshal([]byte(f), &gadget); err != nil {
 		return errors.New("cannot decode gadget yaml")
 	}
+
 	s.gadget = gadget
-	s.gadget.SetRoot(systemPath)
-
-	// ensure we can download and install snaps
-	arch.SetArchitecture(arch.ArchitectureType(s.gadget.Architecture()))
-
+	s.gadget.SetRoot(fakeGadgetDir)
 	return nil
 }
 
@@ -390,9 +301,6 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 			Output:        s.Output,
 			Channel:       s.Channel,
 			DevicePart:    s.Development.DevicePart,
-			Gadget:        s.Gadget,
-			OS:            s.OS,
-			Kernel:        s.Kernel,
 			DeveloperMode: s.Development.DeveloperMode,
 		},
 	}
@@ -431,7 +339,7 @@ func (s *Snapper) downloadSnap(snapName string) (string, error) {
 	release.Series = s.Positional.Release
 
 	cfg := store.DefaultConfig()
-	cfg.StoreID = s.StoreID
+	cfg.StoreID = s.modelAssertion.Store()
 	m := store.New(cfg, nil)
 	snap, err := m.Snap(snapName, s.Channel, false, snap.R(0), nil)
 	if err != nil {
@@ -488,7 +396,7 @@ func (s *Snapper) setup() error {
 	// this is a bit terrible, we need to download the OS
 	// mount it, "sync dirs" (see below) and then we
 	// will need to download it again to install it properly
-	osSnap, err := s.downloadSnap(s.OS)
+	osSnap, err := s.downloadSnap("ubuntu-core")
 	if err != nil {
 		return err
 	}
@@ -596,13 +504,13 @@ func (s *Snapper) create() (err error) {
 		return err
 	}
 
-	if s.StoreID != "" {
-		fmt.Println("Setting store id to", s.StoreID)
-		os.Setenv("UBUNTU_STORE_ID", s.StoreID)
+	fmt.Println("Calling prepare image")
+	if err := s.prepareImage(); err != nil {
+		return err
 	}
 
 	fmt.Println("Determining gadget configuration")
-	if err := s.extractGadget(s.Gadget); err != nil {
+	if err := s.extractGadget(s.modelAssertion.Gadget()); err != nil {
 		return err
 	}
 	defer os.RemoveAll(s.stagingRootPath)
