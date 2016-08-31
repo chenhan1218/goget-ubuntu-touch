@@ -85,7 +85,6 @@ type Snapper struct {
 
 	Development struct {
 		Install       []string `long:"install" description:"Install additional packages (can be called multiple times)"`
-		DevicePart    string   `long:"device-part" description:"Specify a local device part to override the one from the server"`
 		DeveloperMode bool     `long:"developer-mode" description:"Finds the latest public key in your ~/.ssh and sets it up using cloud-init"`
 	} `group:"Development"`
 
@@ -300,7 +299,6 @@ func (s Snapper) writeInstallYaml(bootMountpoint string) error {
 			SizeUnit:      "GB",
 			Output:        s.Output,
 			Channel:       s.Channel,
-			DevicePart:    s.Development.DevicePart,
 			DeveloperMode: s.Development.DeveloperMode,
 		},
 	}
