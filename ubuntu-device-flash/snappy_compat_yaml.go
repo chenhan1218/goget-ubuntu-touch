@@ -52,7 +52,6 @@ gadget:
         - path: boot-assets/cmdline.txt
         - path: boot-assets/uboot.bin
         - path: boot-assets/uboot.env
-        - path: boot-assets/uEnv.txt
         - path: boot-assets/bcm2708-rpi-b.dtb
         - path: boot-assets/bcm2708-rpi-b-plus.dtb
         - path: boot-assets/bcm2709-rpi-2-b.dtb
